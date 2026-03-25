@@ -5,11 +5,12 @@ import { Canvas, Circle } from 'fabric'
 const { Paragraph, Text: AntText } = Typography
 
 type FiberTargetType = 'tube' | 'core'
-type FiberSpec = '144' | '288'
+type FiberSpec = '120' | '132' | '144' | '288'
 
 type FiberMeta = {
   targetType: FiberTargetType
   tubeIndex: number
+  tubeSlotIndex?: number
   coreIndex?: number
   globalCoreIndex?: number
 }
@@ -23,7 +24,11 @@ type FiberObject = Circle & {
   fiberMeta?: FiberMeta
   fiberVisualState?: FiberVisualState
 }
-type RingLayout = { radius: number; tubeCount: number }
+type RingLayout = {
+  radius: number
+  slotCount: number
+  emptySlotIndices?: number[]
+}
 type TubeCoreLayout = {
   radius: number
   spacingX: number
@@ -103,7 +108,66 @@ const DEFAULT_CORE_COLOR: FiberColorBand = {
   labelColor: '#111827',
 }
 
+const EMPTY_SLOT_COLOR = {
+  fill: '#ffffff',
+  stroke: '#cbd5e1',
+}
+
 const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
+  '120': {
+    label: '120 芯',
+    totalCores: 120,
+    arrangementLabel: '12 个管位围成单圈：10 个管束 + 2 个空圆',
+    isolationLayerMaxRadius: 122,
+    tubeRadius: 56,
+    coreRadius: 10,
+    coreColumns: 4,
+    coreRows: 3,
+    coreGridSpacingX: 24,
+    coreGridSpacingY: 24,
+    rings: [{ radius: 228, slotCount: 12, emptySlotIndices: [6, 7] }],
+    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
+    coreColorSequence: STANDARD_COLOR_SEQUENCE,
+    colorLegends: [
+      {
+        title: '束管色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 管位排列，其中白、红管位为空圆占位。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+      {
+        title: '纤芯色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+    ],
+  },
+  '132': {
+    label: '132 芯',
+    totalCores: 132,
+    arrangementLabel: '12 个管位围成单圈：11 个管束 + 1 个空圆',
+    isolationLayerMaxRadius: 122,
+    tubeRadius: 56,
+    coreRadius: 10,
+    coreColumns: 4,
+    coreRows: 3,
+    coreGridSpacingX: 24,
+    coreGridSpacingY: 24,
+    rings: [{ radius: 228, slotCount: 12, emptySlotIndices: [6] }],
+    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
+    coreColorSequence: STANDARD_COLOR_SEQUENCE,
+    colorLegends: [
+      {
+        title: '束管色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 管位排列，其中白管位为空圆占位。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+      {
+        title: '纤芯色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+    ],
+  },
   '144': {
     label: '144 芯',
     totalCores: 144,
@@ -115,7 +179,7 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     coreRows: 3,
     coreGridSpacingX: 24,
     coreGridSpacingY: 24,
-    rings: [{ radius: 228, tubeCount: 12 }],
+    rings: [{ radius: 228, slotCount: 12 }],
     tubeColorSequence: STANDARD_COLOR_SEQUENCE,
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
     colorLegends: [
@@ -143,8 +207,8 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     coreGridSpacingX: 15,
     coreGridSpacingY: 15,
     rings: [
-      { radius: 150, tubeCount: 9 },
-      { radius: 250, tubeCount: 15 },
+      { radius: 150, slotCount: 9 },
+      { radius: 250, slotCount: 15 },
     ],
     tubeColorSequence: [...INNER_TUBE_COLOR_SEQUENCE, ...OUTER_TUBE_COLOR_SEQUENCE],
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
@@ -171,7 +235,18 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
 }
 
 function getTubeCount(layout: FiberLayout): number {
-  return layout.rings.reduce((sum, ring) => sum + ring.tubeCount, 0)
+  return layout.rings.reduce(
+    (sum, ring) => sum + ring.slotCount - (ring.emptySlotIndices?.length ?? 0),
+    0,
+  )
+}
+
+function isEmptySlot(ring: RingLayout, slotIndex: number): boolean {
+  return ring.emptySlotIndices?.includes(slotIndex) ?? false
+}
+
+function getTubeSlotCount(layout: FiberLayout): number {
+  return layout.rings.reduce((sum, ring) => sum + ring.slotCount, 0)
 }
 
 function getColorBand(
@@ -254,11 +329,12 @@ function makeTube(
   fabricCanvas: Canvas,
   layout: FiberLayout,
   tubeIndex: number,
+  tubeSlotIndex: number,
   globalCoreStartIndex: number,
   centerX: number,
   centerY: number,
 ): void {
-  const tubeColor = getColorBand(layout.tubeColorSequence, tubeIndex, DEFAULT_TUBE_COLOR)
+  const tubeColor = getColorBand(layout.tubeColorSequence, tubeSlotIndex, DEFAULT_TUBE_COLOR)
   const tubeShellWidth = Math.max(6, Math.round(layout.tubeRadius * 0.14))
   const tubeCoreLayout = getTubeCoreLayout(layout, tubeShellWidth)
   const tubeCircle = new Circle({
@@ -281,6 +357,7 @@ function makeTube(
   tubeCircle.fiberMeta = {
     targetType: 'tube',
     tubeIndex,
+    tubeSlotIndex,
   }
   tubeCircle.fiberVisualState = {
     baseStroke: tubeColor.stroke,
@@ -329,6 +406,7 @@ function makeTube(
       coreCircle.fiberMeta = {
         targetType: 'core',
         tubeIndex,
+        tubeSlotIndex,
         coreIndex,
         globalCoreIndex: globalCoreStartIndex + coreIndex - 1,
       }
@@ -341,6 +419,22 @@ function makeTube(
   }
 }
 
+function makeEmptyTube(fabricCanvas: Canvas, layout: FiberLayout, centerX: number, centerY: number): void {
+  const emptyCircle = new Circle({
+    left: centerX,
+    top: centerY,
+    radius: layout.tubeRadius,
+    fill: EMPTY_SLOT_COLOR.fill,
+    stroke: EMPTY_SLOT_COLOR.stroke,
+    strokeWidth: 2,
+    originX: 'center',
+    originY: 'center',
+    selectable: false,
+    evented: false,
+  })
+  fabricCanvas.add(emptyCircle)
+}
+
 function FiberCrossSection() {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const [selectedSpec, setSelectedSpec] = useState<FiberSpec>('144')
@@ -348,6 +442,7 @@ function FiberCrossSection() {
   const [message, setMessage] = useState('')
   const layout = FIBER_LAYOUTS[selectedSpec]
   const tubeCount = getTubeCount(layout)
+  const tubeSlotCount = getTubeSlotCount(layout)
   const coresPerTube = layout.coreColumns * layout.coreRows
 
   useEffect(() => {
@@ -400,17 +495,31 @@ function FiberCrossSection() {
     })
     fabricCanvas.add(isolationLayer)
 
-    let tubeIndex = 1
+    let tubeSlotIndex = 1
+    let actualTubeIndex = 1
     let globalCoreStartIndex = 1
 
     for (const ring of layout.rings) {
-      for (let i = 0; i < ring.tubeCount; i += 1) {
-        const angle = -Math.PI / 2 + (Math.PI * 2 * i) / ring.tubeCount
+      for (let i = 0; i < ring.slotCount; i += 1) {
+        const angle = -Math.PI / 2 + (Math.PI * 2 * i) / ring.slotCount
         const centerX = CANVAS_CENTER_X + ring.radius * Math.cos(angle)
         const centerY = CANVAS_CENTER_Y + ring.radius * Math.sin(angle)
-        makeTube(fabricCanvas, layout, tubeIndex, globalCoreStartIndex, centerX, centerY)
-        tubeIndex += 1
-        globalCoreStartIndex += coresPerTube
+        if (isEmptySlot(ring, i + 1)) {
+          makeEmptyTube(fabricCanvas, layout, centerX, centerY)
+        } else {
+          makeTube(
+            fabricCanvas,
+            layout,
+            actualTubeIndex,
+            tubeSlotIndex,
+            globalCoreStartIndex,
+            centerX,
+            centerY,
+          )
+          actualTubeIndex += 1
+          globalCoreStartIndex += coresPerTube
+        }
+        tubeSlotIndex += 1
       }
     }
 
@@ -473,17 +582,22 @@ function FiberCrossSection() {
 
       updateSelectedFiber(target)
 
+      const tubeColorIndex = target.fiberMeta.tubeSlotIndex ?? target.fiberMeta.tubeIndex
       if (target.fiberMeta.targetType === 'tube') {
         const tubeColor = getColorBand(
           layout.tubeColorSequence,
-          target.fiberMeta.tubeIndex,
+          tubeColorIndex,
           DEFAULT_TUBE_COLOR,
         )
-        setMessage(`管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}`)
+        setMessage(
+          target.fiberMeta.tubeSlotIndex && target.fiberMeta.tubeSlotIndex !== target.fiberMeta.tubeIndex
+            ? `管束序号：${target.fiberMeta.tubeIndex}，管位序号：${target.fiberMeta.tubeSlotIndex}，束管色谱：${tubeColor.name}`
+            : `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}`,
+        )
       } else {
         const tubeColor = getColorBand(
           layout.tubeColorSequence,
-          target.fiberMeta.tubeIndex,
+          tubeColorIndex,
           DEFAULT_TUBE_COLOR,
         )
         const coreColor = getColorBand(
@@ -492,7 +606,9 @@ function FiberCrossSection() {
           DEFAULT_CORE_COLOR,
         )
         setMessage(
-          `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${coreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
+          target.fiberMeta.tubeSlotIndex && target.fiberMeta.tubeSlotIndex !== target.fiberMeta.tubeIndex
+            ? `管束序号：${target.fiberMeta.tubeIndex}，管位序号：${target.fiberMeta.tubeSlotIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${coreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`
+            : `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${coreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
         )
       }
       setOpen(true)
@@ -509,6 +625,8 @@ function FiberCrossSection() {
       <Space direction="vertical" size={8} align="center">
         <Segmented<FiberSpec>
           options={[
+            { label: '120 芯', value: '120' },
+            { label: '132 芯', value: '132' },
             { label: '144 芯', value: '144' },
             { label: '288 芯', value: '288' },
           ]}
@@ -524,6 +642,9 @@ function FiberCrossSection() {
           {' · '}
           <AntText strong>管束数：</AntText>
           {tubeCount}
+          {' · '}
+          <AntText strong>管位数：</AntText>
+          {tubeSlotCount}
           {' · '}
           <AntText strong>每管纤芯数：</AntText>
           {coresPerTube}
