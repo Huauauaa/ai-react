@@ -16,6 +16,11 @@ type FiberMeta = {
 
 type FiberObject = Circle & { fiberMeta?: FiberMeta }
 type RingLayout = { radius: number; tubeCount: number }
+type TubeCoreLayout = {
+  radius: number
+  spacingX: number
+  spacingY: number
+}
 type FiberColorBand = {
   name: string
   fill: string
@@ -163,6 +168,26 @@ function getColorBand(
   return sequence[(index - 1) % sequence.length]
 }
 
+function getTubeCoreLayout(layout: FiberLayout, tubeShellWidth: number): TubeCoreLayout {
+  const halfGridWidth = ((layout.coreColumns - 1) * layout.coreGridSpacingX) / 2
+  const halfGridHeight = ((layout.coreRows - 1) * layout.coreGridSpacingY) / 2
+  const baseEnvelopeRadius = Math.hypot(halfGridWidth, halfGridHeight) + layout.coreRadius
+  const tubeInnerRadius = layout.tubeRadius - tubeShellWidth
+  // Keep a small visual gap so fiber cores do not touch the tube shell.
+  const innerPadding = Math.max(2, layout.coreRadius * 0.25)
+  const availableRadius = Math.max(0, tubeInnerRadius - innerPadding)
+  const scale =
+    baseEnvelopeRadius > 0
+      ? Math.max(0, Math.min(1, availableRadius / baseEnvelopeRadius))
+      : 1
+
+  return {
+    radius: layout.coreRadius * scale,
+    spacingX: layout.coreGridSpacingX * scale,
+    spacingY: layout.coreGridSpacingY * scale,
+  }
+}
+
 function makeTube(
   fabricCanvas: Canvas,
   layout: FiberLayout,
@@ -173,6 +198,7 @@ function makeTube(
 ): void {
   const tubeColor = getColorBand(layout.tubeColorSequence, tubeIndex, DEFAULT_TUBE_COLOR)
   const tubeShellWidth = Math.max(6, Math.round(layout.tubeRadius * 0.14))
+  const tubeCoreLayout = getTubeCoreLayout(layout, tubeShellWidth)
   const tubeCircle = new Circle({
     left: centerX,
     top: centerY,
@@ -220,19 +246,19 @@ function makeTube(
   })
   fabricCanvas.add(label)
 
-  const coreGridWidth = (layout.coreColumns - 1) * layout.coreGridSpacingX
-  const coreGridHeight = (layout.coreRows - 1) * layout.coreGridSpacingY
+  const coreGridWidth = (layout.coreColumns - 1) * tubeCoreLayout.spacingX
+  const coreGridHeight = (layout.coreRows - 1) * tubeCoreLayout.spacingY
 
   for (let row = 0; row < layout.coreRows; row += 1) {
     for (let col = 0; col < layout.coreColumns; col += 1) {
-      const coreX = centerX - coreGridWidth / 2 + col * layout.coreGridSpacingX
-      const coreY = centerY - coreGridHeight / 2 + row * layout.coreGridSpacingY
+      const coreX = centerX - coreGridWidth / 2 + col * tubeCoreLayout.spacingX
+      const coreY = centerY - coreGridHeight / 2 + row * tubeCoreLayout.spacingY
       const coreIndex = row * layout.coreColumns + col + 1
       const coreColor = getColorBand(layout.coreColorSequence, coreIndex, DEFAULT_CORE_COLOR)
       const coreCircle = new Circle({
         left: coreX,
         top: coreY,
-        radius: layout.coreRadius,
+        radius: tubeCoreLayout.radius,
         fill: coreColor.fill,
         stroke: coreColor.stroke,
         strokeWidth: 1.5,
