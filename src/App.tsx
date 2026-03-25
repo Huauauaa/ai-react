@@ -1,4 +1,5 @@
-import { Button, Card, ConfigProvider, Space, Typography } from 'antd'
+import { Card, ConfigProvider, Space, Typography } from 'antd'
+import FiberCrossSection from './components/FiberCrossSection'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -18,19 +19,12 @@ function App() {
             <Space direction="vertical" size="middle" className="w-full">
               <Text className="text-sky-600">Vite + React + TypeScript</Text>
               <Title level={2} style={{ margin: 0 }}>
-                Ant Design + Tailwind CSS 初始化完成
+                光纤横切面（Fabric.js）
               </Title>
               <Paragraph style={{ marginBottom: 0 }}>
-                你现在可以在 <code>src/App.tsx</code> 中开始业务开发。页面使用
-                <Text strong> Ant Design 组件 </Text>
-                与
-                <Text strong> Tailwind 原子类 </Text>
-                混合搭建。
+                点击管束或纤芯后，会弹出弹框，显示对应的管束序号和纤芯序号。
               </Paragraph>
-              <div className="flex flex-wrap gap-3">
-                <Button type="primary">Primary Button</Button>
-                <Button>Default Button</Button>
-              </div>
+              <FiberCrossSection />
             </Space>
           </Card>
         </section>
