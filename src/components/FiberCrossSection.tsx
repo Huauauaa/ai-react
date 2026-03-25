@@ -61,6 +61,7 @@ const CANVAS_WIDTH = 760
 const CANVAS_HEIGHT = 760
 const OUTER_RADIUS = 320
 const OUTER_SHEATH_THICKNESS = 24
+const ISOLATION_LAYER_MAX_RADIUS = 80
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
 const HOVER_STROKE = '#0f172a'
@@ -203,7 +204,7 @@ function getIsolationLayerRadius(layout: FiberLayout): number {
   const innermostRingRadius = layout.rings[0]?.radius ?? 0
   const availableRadius = innermostRingRadius - layout.tubeRadius - 24
 
-  return Math.max(28, Math.min(80, availableRadius))
+  return Math.max(0, Math.min(ISOLATION_LAYER_MAX_RADIUS, availableRadius))
 }
 
 function setFiberVisualState(
@@ -384,8 +385,8 @@ function FiberCrossSection() {
       left: CANVAS_CENTER_X,
       top: CANVAS_CENTER_Y,
       radius: getIsolationLayerRadius(layout),
-      fill: '#94a3b8',
-      stroke: '#64748b',
+      fill: '#9ca3af',
+      stroke: '#6b7280',
       strokeWidth: 2,
       originX: 'center',
       originY: 'center',
