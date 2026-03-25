@@ -14,7 +14,15 @@ type FiberMeta = {
   globalCoreIndex?: number
 }
 
-type FiberObject = Circle & { fiberMeta?: FiberMeta }
+type FiberVisualState = {
+  baseStroke: string
+  baseStrokeWidth: number
+}
+
+type FiberObject = Circle & {
+  fiberMeta?: FiberMeta
+  fiberVisualState?: FiberVisualState
+}
 type RingLayout = { radius: number; tubeCount: number }
 type TubeCoreLayout = {
   radius: number
@@ -54,6 +62,8 @@ const CANVAS_HEIGHT = 760
 const OUTER_RADIUS = 320
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
+const HOVER_STROKE = '#0f172a'
+const SELECTED_STROKE = '#2563eb'
 
 const STANDARD_COLOR_SEQUENCE: FiberColorBand[] = [
   { name: '蓝', fill: '#2563eb', stroke: '#1d4ed8', labelColor: '#ffffff' },
@@ -188,6 +198,44 @@ function getTubeCoreLayout(layout: FiberLayout, tubeShellWidth: number): TubeCor
   }
 }
 
+function setFiberVisualState(
+  fiberObject: FiberObject,
+  emphasis: 'default' | 'hover' | 'selected',
+): void {
+  const baseStroke = fiberObject.fiberVisualState?.baseStroke ?? '#334155'
+  const baseStrokeWidth = fiberObject.fiberVisualState?.baseStrokeWidth ?? 1.5
+
+  if (emphasis === 'selected') {
+    fiberObject.set({
+      stroke: SELECTED_STROKE,
+      strokeWidth: baseStrokeWidth + 3,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      shadow: 'rgba(37, 99, 235, 0.32) 0px 0px 16px',
+    })
+    return
+  }
+
+  if (emphasis === 'hover') {
+    fiberObject.set({
+      stroke: HOVER_STROKE,
+      strokeWidth: baseStrokeWidth + 1.5,
+      scaleX: 1.04,
+      scaleY: 1.04,
+      shadow: 'rgba(15, 23, 42, 0.18) 0px 0px 10px',
+    })
+    return
+  }
+
+  fiberObject.set({
+    stroke: baseStroke,
+    strokeWidth: baseStrokeWidth,
+    scaleX: 1,
+    scaleY: 1,
+    shadow: undefined,
+  })
+}
+
 function makeTube(
   fabricCanvas: Canvas,
   layout: FiberLayout,
@@ -208,6 +256,7 @@ function makeTube(
     strokeWidth: 1.5,
     originX: 'center',
     originY: 'center',
+    selectable: false,
     hasControls: false,
     hasBorders: false,
     lockMovementX: true,
@@ -218,6 +267,10 @@ function makeTube(
   tubeCircle.fiberMeta = {
     targetType: 'tube',
     tubeIndex,
+  }
+  tubeCircle.fiberVisualState = {
+    baseStroke: tubeColor.stroke,
+    baseStrokeWidth: 1.5,
   }
   fabricCanvas.add(tubeCircle)
 
@@ -264,6 +317,7 @@ function makeTube(
         strokeWidth: 1.5,
         originX: 'center',
         originY: 'center',
+        selectable: false,
         hasControls: false,
         hasBorders: false,
         lockMovementX: true,
@@ -276,6 +330,10 @@ function makeTube(
         tubeIndex,
         coreIndex,
         globalCoreIndex: globalCoreStartIndex + coreIndex - 1,
+      }
+      coreCircle.fiberVisualState = {
+        baseStroke: coreColor.stroke,
+        baseStrokeWidth: 1.5,
       }
       fabricCanvas.add(coreCircle)
     }
@@ -329,9 +387,64 @@ function FiberCrossSection() {
       }
     }
 
+    let hoveredFiber: FiberObject | null = null
+    let selectedFiber: FiberObject | null = null
+
+    const syncFiberVisualState = (fiber: FiberObject | null) => {
+      if (!fiber?.fiberMeta) return
+
+      if (fiber === selectedFiber) {
+        setFiberVisualState(fiber, 'selected')
+        return
+      }
+
+      if (fiber === hoveredFiber) {
+        setFiberVisualState(fiber, 'hover')
+        return
+      }
+
+      setFiberVisualState(fiber, 'default')
+    }
+
+    const updateHoveredFiber = (nextFiber: FiberObject | null) => {
+      if (hoveredFiber === nextFiber) return
+
+      const previousFiber = hoveredFiber
+      hoveredFiber = nextFiber
+      syncFiberVisualState(previousFiber)
+      syncFiberVisualState(hoveredFiber)
+      fabricCanvas.requestRenderAll()
+    }
+
+    const updateSelectedFiber = (nextFiber: FiberObject | null) => {
+      if (selectedFiber === nextFiber) return
+
+      const previousFiber = selectedFiber
+      selectedFiber = nextFiber
+      syncFiberVisualState(previousFiber)
+      syncFiberVisualState(selectedFiber)
+      fabricCanvas.requestRenderAll()
+    }
+
+    fabricCanvas.on('mouse:over', (event) => {
+      const target = event.target as FiberObject | undefined
+      updateHoveredFiber(target?.fiberMeta ? target : null)
+    })
+
+    fabricCanvas.on('mouse:out', (event) => {
+      const target = event.target as FiberObject | undefined
+      if (target && hoveredFiber !== target) return
+      updateHoveredFiber(null)
+    })
+
     fabricCanvas.on('mouse:down', (event) => {
       const target = event.target as FiberObject | undefined
-      if (!target?.fiberMeta) return
+      if (!target?.fiberMeta) {
+        updateSelectedFiber(null)
+        return
+      }
+
+      updateSelectedFiber(target)
 
       if (target.fiberMeta.targetType === 'tube') {
         const tubeColor = getColorBand(
@@ -390,7 +503,7 @@ function FiberCrossSection() {
         </Paragraph>
       </Space>
       <Paragraph style={{ marginBottom: 0 }}>
-        <AntText strong>交互说明：</AntText>点击任意管束或纤芯，会弹出对应序号信息。
+        <AntText strong>交互说明：</AntText>悬停任意管束或纤芯可查看激活高亮，点击后会保留选中样式并弹出对应序号信息。
       </Paragraph>
       {layout.colorLegends?.length ? (
         <Space direction="vertical" size={8} align="center">
