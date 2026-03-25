@@ -10,22 +10,22 @@
 ## 快速开始
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ## 常用命令
 
 ```bash
 # 本地开发
-npm run dev
+pnpm dev
 
 # 生产构建
-npm run build
+pnpm build
 
 # 本地预览构建产物
-npm run preview
+pnpm preview
 
 # 代码检查
-npm run lint
+pnpm lint
 ```
