@@ -19,6 +19,7 @@ type RingLayout = { radius: number; tubeCount: number }
 type FiberLayout = {
   label: string
   totalCores: number
+  arrangementLabel: string
   tubeRadius: number
   coreRadius: number
   coreColumns: number
@@ -38,21 +39,19 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
   '144': {
     label: '144 芯',
     totalCores: 144,
+    arrangementLabel: '12 个管束围成单圈',
     tubeRadius: 56,
     coreRadius: 10,
     coreColumns: 4,
     coreRows: 3,
     coreGridSpacingX: 24,
     coreGridSpacingY: 24,
-    rings: [
-      { radius: 230, tubeCount: 8 },
-      { radius: 120, tubeCount: 3 },
-      { radius: 0, tubeCount: 1 },
-    ],
+    rings: [{ radius: 230, tubeCount: 12 }],
   },
   '288': {
     label: '288 芯',
     totalCores: 288,
+    arrangementLabel: '双圈排布：内圈 9 个，外圈 15 个',
     tubeRadius: 38,
     coreRadius: 6,
     coreColumns: 4,
@@ -60,10 +59,8 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     coreGridSpacingX: 15,
     coreGridSpacingY: 15,
     rings: [
-      { radius: 250, tubeCount: 12 },
-      { radius: 165, tubeCount: 8 },
-      { radius: 82, tubeCount: 3 },
-      { radius: 0, tubeCount: 1 },
+      { radius: 150, tubeCount: 9 },
+      { radius: 250, tubeCount: 15 },
     ],
   },
 }
@@ -187,13 +184,6 @@ function FiberCrossSection() {
     let globalCoreStartIndex = 1
 
     for (const ring of layout.rings) {
-      if (ring.tubeCount === 1 && ring.radius === 0) {
-        makeTube(fabricCanvas, layout, tubeIndex, globalCoreStartIndex, CANVAS_CENTER_X, CANVAS_CENTER_Y)
-        tubeIndex += 1
-        globalCoreStartIndex += coresPerTube
-        continue
-      }
-
       for (let i = 0; i < ring.tubeCount; i += 1) {
         const angle = -Math.PI / 2 + (Math.PI * 2 * i) / ring.tubeCount
         const centerX = CANVAS_CENTER_X + ring.radius * Math.cos(angle)
@@ -238,6 +228,9 @@ function FiberCrossSection() {
         <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
           <AntText strong>当前规格：</AntText>
           {layout.label}
+          {' · '}
+          <AntText strong>排布：</AntText>
+          {layout.arrangementLabel}
           {' · '}
           <AntText strong>管束数：</AntText>
           {tubeCount}
