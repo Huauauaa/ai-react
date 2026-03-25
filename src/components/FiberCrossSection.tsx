@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Modal, Segmented, Space, Typography } from 'antd'
-import { Canvas, Circle, Text } from 'fabric'
+import { Canvas, Circle } from 'fabric'
 
 const { Paragraph, Text: AntText } = Typography
 
@@ -60,6 +60,8 @@ type FiberLayout = {
 const CANVAS_WIDTH = 760
 const CANVAS_HEIGHT = 760
 const OUTER_RADIUS = 320
+const OUTER_SHEATH_THICKNESS = 24
+const ISOLATION_LAYER_MAX_RADIUS = 80
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
 const HOVER_STROKE = '#0f172a'
@@ -198,6 +200,13 @@ function getTubeCoreLayout(layout: FiberLayout, tubeShellWidth: number): TubeCor
   }
 }
 
+function getIsolationLayerRadius(layout: FiberLayout): number {
+  const innermostRingRadius = layout.rings[0]?.radius ?? 0
+  const availableRadius = innermostRingRadius - layout.tubeRadius - 24
+
+  return Math.max(0, Math.min(ISOLATION_LAYER_MAX_RADIUS, availableRadius))
+}
+
 function setFiberVisualState(
   fiberObject: FiberObject,
   emphasis: 'default' | 'hover' | 'selected',
@@ -286,19 +295,6 @@ function makeTube(
   })
   fabricCanvas.add(tubeCore)
 
-  const label = new Text(String(tubeIndex), {
-    left: centerX,
-    top: centerY,
-    fontSize: Math.max(14, layout.tubeRadius * 0.36),
-    fontWeight: 'bold',
-    fill: tubeColor.stroke,
-    originX: 'center',
-    originY: 'center',
-    selectable: false,
-    evented: false,
-  })
-  fabricCanvas.add(label)
-
   const coreGridWidth = (layout.coreColumns - 1) * tubeCoreLayout.spacingX
   const coreGridHeight = (layout.coreRows - 1) * tubeCoreLayout.spacingY
 
@@ -359,19 +355,45 @@ function FiberCrossSection() {
       selection: false,
     })
 
-    const outerRing = new Circle({
+    const outerSheath = new Circle({
       left: CANVAS_CENTER_X,
       top: CANVAS_CENTER_Y,
       radius: OUTER_RADIUS,
-      fill: '#ffffff',
-      stroke: '#334155',
-      strokeWidth: 4,
+      fill: '#334155',
       originX: 'center',
       originY: 'center',
       selectable: false,
       evented: false,
     })
-    fabricCanvas.add(outerRing)
+    fabricCanvas.add(outerSheath)
+
+    const innerCableBody = new Circle({
+      left: CANVAS_CENTER_X,
+      top: CANVAS_CENTER_Y,
+      radius: OUTER_RADIUS - OUTER_SHEATH_THICKNESS,
+      fill: '#ffffff',
+      stroke: '#cbd5e1',
+      strokeWidth: 1,
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+    })
+    fabricCanvas.add(innerCableBody)
+
+    const isolationLayer = new Circle({
+      left: CANVAS_CENTER_X,
+      top: CANVAS_CENTER_Y,
+      radius: getIsolationLayerRadius(layout),
+      fill: '#9ca3af',
+      stroke: '#6b7280',
+      strokeWidth: 2,
+      originX: 'center',
+      originY: 'center',
+      selectable: false,
+      evented: false,
+    })
+    fabricCanvas.add(isolationLayer)
 
     let tubeIndex = 1
     let globalCoreStartIndex = 1
