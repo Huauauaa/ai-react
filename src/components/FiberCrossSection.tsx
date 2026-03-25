@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Modal, Segmented, Space, Typography } from 'antd'
+import { Modal, Select, Space, Typography } from 'antd'
 import { Canvas, Circle } from 'fabric'
 
 const { Paragraph, Text: AntText } = Typography
 
 type FiberTargetType = 'tube' | 'core'
-type FiberSpec = '120' | '132' | '144' | '288'
+const SINGLE_RING_TOTALS = [12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144] as const
+type SingleRingFiberSpec = `${(typeof SINGLE_RING_TOTALS)[number]}`
+type FiberSpec = SingleRingFiberSpec | '288'
 
 type FiberMeta = {
   targetType: FiberTargetType
@@ -93,6 +95,8 @@ const OUTER_TUBE_COLOR_SEQUENCE = [
   ...STANDARD_COLOR_SEQUENCE.slice(0, 3),
 ]
 const STANDARD_COLOR_SEQUENCE_TEXT = STANDARD_COLOR_SEQUENCE.map((color) => color.name).join('、')
+const SINGLE_RING_SLOT_COUNT = 12
+const SINGLE_RING_EMPTY_SLOT_PRIORITY = [6, 7, 8, 9, 10, 11, 12, 5, 4, 3, 2, 1] as const
 
 const DEFAULT_TUBE_COLOR: FiberColorBand = {
   name: '默认蓝',
@@ -113,88 +117,84 @@ const EMPTY_SLOT_COLOR = {
   stroke: '#cbd5e1',
 }
 
+function getSingleRingEmptySlotIndices(totalCores: number): number[] {
+  const tubeCount = totalCores / STANDARD_COLOR_SEQUENCE.length
+  const emptyCount = SINGLE_RING_SLOT_COUNT - tubeCount
+  return [...SINGLE_RING_EMPTY_SLOT_PRIORITY.slice(0, emptyCount)]
+}
+
+function getSingleRingTubeLegendDescription(emptySlotIndices: number[]): string {
+  if (!emptySlotIndices.length) {
+    return `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`
+  }
+
+  const emptySlotNames = emptySlotIndices
+    .map((slotIndex) => getColorBand(STANDARD_COLOR_SEQUENCE, slotIndex, DEFAULT_TUBE_COLOR).name)
+    .join('、')
+
+  return `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 管位排列，其中 ${emptySlotNames} 管位为空圆占位。`
+}
+
+function createSingleRingLayout(totalCores: number): FiberLayout {
+  const tubeCount = totalCores / STANDARD_COLOR_SEQUENCE.length
+  const emptySlotIndices = getSingleRingEmptySlotIndices(totalCores)
+  const emptyCount = emptySlotIndices.length
+
+  return {
+    label: `${totalCores} 芯`,
+    totalCores,
+    arrangementLabel:
+      emptyCount > 0
+        ? `${SINGLE_RING_SLOT_COUNT} 个管位围成单圈：${tubeCount} 个管束 + ${emptyCount} 个空圆`
+        : `${SINGLE_RING_SLOT_COUNT} 个管束围成单圈`,
+    isolationLayerMaxRadius: 122,
+    tubeRadius: 56,
+    coreRadius: 10,
+    coreColumns: 4,
+    coreRows: 3,
+    coreGridSpacingX: 24,
+    coreGridSpacingY: 24,
+    rings: [
+      {
+        radius: 228,
+        slotCount: SINGLE_RING_SLOT_COUNT,
+        emptySlotIndices: emptyCount > 0 ? emptySlotIndices : undefined,
+      },
+    ],
+    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
+    coreColorSequence: STANDARD_COLOR_SEQUENCE,
+    colorLegends: [
+      {
+        title: '束管色谱',
+        description: getSingleRingTubeLegendDescription(emptySlotIndices),
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+      {
+        title: '纤芯色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+    ],
+  }
+}
+
+const SINGLE_RING_LAYOUTS = Object.fromEntries(
+  SINGLE_RING_TOTALS.map((totalCores) => [
+    `${totalCores}` as SingleRingFiberSpec,
+    createSingleRingLayout(totalCores),
+  ]),
+) as Record<SingleRingFiberSpec, FiberLayout>
+
+const FIBER_SPEC_OPTIONS: { label: string; value: FiberSpec }[] = [
+  ...SINGLE_RING_TOTALS.map((totalCores) => ({
+    label: `${totalCores} 芯`,
+    value: `${totalCores}` as SingleRingFiberSpec,
+  })),
+  { label: '288 芯', value: '288' },
+]
+
 const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
-  '120': {
-    label: '120 芯',
-    totalCores: 120,
-    arrangementLabel: '12 个管位围成单圈：10 个管束 + 2 个空圆',
-    isolationLayerMaxRadius: 122,
-    tubeRadius: 56,
-    coreRadius: 10,
-    coreColumns: 4,
-    coreRows: 3,
-    coreGridSpacingX: 24,
-    coreGridSpacingY: 24,
-    rings: [{ radius: 228, slotCount: 12, emptySlotIndices: [6, 7] }],
-    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
-    coreColorSequence: STANDARD_COLOR_SEQUENCE,
-    colorLegends: [
-      {
-        title: '束管色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 管位排列，其中白、红管位为空圆占位。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-      {
-        title: '纤芯色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-    ],
-  },
-  '132': {
-    label: '132 芯',
-    totalCores: 132,
-    arrangementLabel: '12 个管位围成单圈：11 个管束 + 1 个空圆',
-    isolationLayerMaxRadius: 122,
-    tubeRadius: 56,
-    coreRadius: 10,
-    coreColumns: 4,
-    coreRows: 3,
-    coreGridSpacingX: 24,
-    coreGridSpacingY: 24,
-    rings: [{ radius: 228, slotCount: 12, emptySlotIndices: [6] }],
-    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
-    coreColorSequence: STANDARD_COLOR_SEQUENCE,
-    colorLegends: [
-      {
-        title: '束管色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 管位排列，其中白管位为空圆占位。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-      {
-        title: '纤芯色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-    ],
-  },
-  '144': {
-    label: '144 芯',
-    totalCores: 144,
-    arrangementLabel: '12 个管束围成单圈',
-    isolationLayerMaxRadius: 122,
-    tubeRadius: 56,
-    coreRadius: 10,
-    coreColumns: 4,
-    coreRows: 3,
-    coreGridSpacingX: 24,
-    coreGridSpacingY: 24,
-    rings: [{ radius: 228, slotCount: 12 }],
-    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
-    coreColorSequence: STANDARD_COLOR_SEQUENCE,
-    colorLegends: [
-      {
-        title: '束管色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-      {
-        title: '纤芯色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-    ],
-  },
+  ...SINGLE_RING_LAYOUTS,
   '288': {
     label: '288 芯',
     totalCores: 288,
@@ -623,15 +623,11 @@ function FiberCrossSection() {
   return (
     <div className="flex flex-col items-center gap-4">
       <Space direction="vertical" size={8} align="center">
-        <Segmented<FiberSpec>
-          options={[
-            { label: '120 芯', value: '120' },
-            { label: '132 芯', value: '132' },
-            { label: '144 芯', value: '144' },
-            { label: '288 芯', value: '288' },
-          ]}
+        <Select
           value={selectedSpec}
+          options={FIBER_SPEC_OPTIONS}
           onChange={(value) => setSelectedSpec(value)}
+          style={{ minWidth: 240 }}
         />
         <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
           <AntText strong>当前规格：</AntText>
