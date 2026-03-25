@@ -22,6 +22,12 @@ type FiberColorBand = {
   stroke: string
   labelColor?: string
 }
+type FiberColorLegend = {
+  title: string
+  description: string
+  sequence: FiberColorBand[]
+  indexStart?: number
+}
 type FiberLayout = {
   label: string
   totalCores: number
@@ -35,6 +41,7 @@ type FiberLayout = {
   rings: RingLayout[]
   tubeColorSequence?: FiberColorBand[]
   coreColorSequence?: FiberColorBand[]
+  colorLegends?: FiberColorLegend[]
 }
 
 const CANVAS_WIDTH = 760
@@ -57,6 +64,12 @@ const STANDARD_COLOR_SEQUENCE: FiberColorBand[] = [
   { name: '粉红', fill: '#ec4899', stroke: '#db2777', labelColor: '#ffffff' },
   { name: '青绿', fill: '#14b8a6', stroke: '#0f766e', labelColor: '#ffffff' },
 ]
+const INNER_TUBE_COLOR_SEQUENCE = STANDARD_COLOR_SEQUENCE.slice(0, 9)
+const OUTER_TUBE_COLOR_SEQUENCE = [
+  ...STANDARD_COLOR_SEQUENCE,
+  ...STANDARD_COLOR_SEQUENCE.slice(0, 3),
+]
+const STANDARD_COLOR_SEQUENCE_TEXT = STANDARD_COLOR_SEQUENCE.map((color) => color.name).join('、')
 
 const DEFAULT_TUBE_COLOR: FiberColorBand = {
   name: '默认蓝',
@@ -86,6 +99,18 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     rings: [{ radius: 230, tubeCount: 12 }],
     tubeColorSequence: STANDARD_COLOR_SEQUENCE,
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
+    colorLegends: [
+      {
+        title: '束管色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+      {
+        title: '纤芯色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
+    ],
   },
   '288': {
     label: '288 芯',
@@ -100,6 +125,27 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     rings: [
       { radius: 150, tubeCount: 9 },
       { radius: 250, tubeCount: 15 },
+    ],
+    tubeColorSequence: [...INNER_TUBE_COLOR_SEQUENCE, ...OUTER_TUBE_COLOR_SEQUENCE],
+    coreColorSequence: STANDARD_COLOR_SEQUENCE,
+    colorLegends: [
+      {
+        title: '束管色谱（内圈第 1-9 管）',
+        description: `依次为 ${INNER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`,
+        sequence: INNER_TUBE_COLOR_SEQUENCE,
+        indexStart: 1,
+      },
+      {
+        title: '束管色谱（外圈第 10-24 管）',
+        description: `依次为 ${OUTER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`,
+        sequence: OUTER_TUBE_COLOR_SEQUENCE,
+        indexStart: 10,
+      },
+      {
+        title: '纤芯色谱',
+        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
+        sequence: STANDARD_COLOR_SEQUENCE,
+      },
     ],
   },
 }
@@ -205,7 +251,6 @@ function FiberCrossSection() {
   const layout = FIBER_LAYOUTS[selectedSpec]
   const tubeCount = getTubeCount(layout)
   const coresPerTube = layout.coreColumns * layout.coreRows
-  const colorSequenceNames = layout.tubeColorSequence?.map((color) => color.name).join('、')
 
   useEffect(() => {
     if (!canvasElementRef.current) return
@@ -308,27 +353,31 @@ function FiberCrossSection() {
       <Paragraph style={{ marginBottom: 0 }}>
         <AntText strong>交互说明：</AntText>点击任意管束或纤芯，会弹出对应序号信息。
       </Paragraph>
-      {colorSequenceNames ? (
+      {layout.colorLegends?.length ? (
         <Space direction="vertical" size={8} align="center">
-          <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-            <AntText strong>色谱顺序：</AntText>
-            144 芯束管色谱与纤芯色谱均按 {colorSequenceNames} 排列。
-          </Paragraph>
-          <div className="flex flex-wrap justify-center gap-2">
-            {layout.tubeColorSequence?.map((color, index) => (
-              <span
-                key={color.name}
-                className="rounded-full border px-3 py-1 text-sm shadow-sm"
-                style={{
-                  backgroundColor: color.fill,
-                  borderColor: color.stroke,
-                  color: color.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
-                }}
-              >
-                {index + 1}. {color.name}
-              </span>
-            ))}
-          </div>
+          {layout.colorLegends.map((legend) => (
+            <Space key={legend.title} direction="vertical" size={8} align="center">
+              <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
+                <AntText strong>{legend.title}：</AntText>
+                {legend.description}
+              </Paragraph>
+              <div className="flex flex-wrap justify-center gap-2">
+                {legend.sequence.map((color, index) => (
+                  <span
+                    key={`${legend.title}-${legend.indexStart ?? 1}-${index}-${color.name}`}
+                    className="rounded-full border px-3 py-1 text-sm shadow-sm"
+                    style={{
+                      backgroundColor: color.fill,
+                      borderColor: color.stroke,
+                      color: color.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
+                    }}
+                  >
+                    {(legend.indexStart ?? 1) + index}. {color.name}
+                  </span>
+                ))}
+              </div>
+            </Space>
+          ))}
         </Space>
       ) : null}
       <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
