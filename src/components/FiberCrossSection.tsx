@@ -45,6 +45,7 @@ type FiberLayout = {
   label: string
   totalCores: number
   arrangementLabel: string
+  isolationLayerMaxRadius?: number
   tubeRadius: number
   coreRadius: number
   coreColumns: number
@@ -61,7 +62,7 @@ const CANVAS_WIDTH = 760
 const CANVAS_HEIGHT = 760
 const OUTER_RADIUS = 320
 const OUTER_SHEATH_THICKNESS = 24
-const ISOLATION_LAYER_MAX_RADIUS = 80
+const DEFAULT_ISOLATION_LAYER_MAX_RADIUS = 80
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
 const HOVER_STROKE = '#0f172a'
@@ -107,13 +108,14 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     label: '144 芯',
     totalCores: 144,
     arrangementLabel: '12 个管束围成单圈',
+    isolationLayerMaxRadius: 122,
     tubeRadius: 56,
     coreRadius: 10,
     coreColumns: 4,
     coreRows: 3,
     coreGridSpacingX: 24,
     coreGridSpacingY: 24,
-    rings: [{ radius: 230, tubeCount: 12 }],
+    rings: [{ radius: 228, tubeCount: 12 }],
     tubeColorSequence: STANDARD_COLOR_SEQUENCE,
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
     colorLegends: [
@@ -133,6 +135,7 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     label: '288 芯',
     totalCores: 288,
     arrangementLabel: '双圈排布：内圈 9 个，外圈 15 个',
+    isolationLayerMaxRadius: DEFAULT_ISOLATION_LAYER_MAX_RADIUS,
     tubeRadius: 38,
     coreRadius: 6,
     coreColumns: 4,
@@ -203,8 +206,10 @@ function getTubeCoreLayout(layout: FiberLayout, tubeShellWidth: number): TubeCor
 function getIsolationLayerRadius(layout: FiberLayout): number {
   const innermostRingRadius = layout.rings[0]?.radius ?? 0
   const availableRadius = innermostRingRadius - layout.tubeRadius - 24
+  const isolationLayerMaxRadius =
+    layout.isolationLayerMaxRadius ?? DEFAULT_ISOLATION_LAYER_MAX_RADIUS
 
-  return Math.max(0, Math.min(ISOLATION_LAYER_MAX_RADIUS, availableRadius))
+  return Math.max(0, Math.min(isolationLayerMaxRadius, availableRadius))
 }
 
 function setFiberVisualState(
