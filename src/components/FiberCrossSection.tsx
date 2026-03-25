@@ -16,6 +16,12 @@ type FiberMeta = {
 
 type FiberObject = Circle & { fiberMeta?: FiberMeta }
 type RingLayout = { radius: number; tubeCount: number }
+type FiberColorBand = {
+  name: string
+  fill: string
+  stroke: string
+  labelColor?: string
+}
 type FiberLayout = {
   label: string
   totalCores: number
@@ -27,6 +33,8 @@ type FiberLayout = {
   coreGridSpacingX: number
   coreGridSpacingY: number
   rings: RingLayout[]
+  tubeColorSequence?: FiberColorBand[]
+  coreColorSequence?: FiberColorBand[]
 }
 
 const CANVAS_WIDTH = 760
@@ -34,6 +42,35 @@ const CANVAS_HEIGHT = 760
 const OUTER_RADIUS = 320
 const CANVAS_CENTER_X = CANVAS_WIDTH / 2
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
+
+const STANDARD_COLOR_SEQUENCE: FiberColorBand[] = [
+  { name: '蓝', fill: '#2563eb', stroke: '#1d4ed8', labelColor: '#ffffff' },
+  { name: '橙', fill: '#f97316', stroke: '#ea580c', labelColor: '#ffffff' },
+  { name: '绿', fill: '#16a34a', stroke: '#15803d', labelColor: '#ffffff' },
+  { name: '棕', fill: '#92400e', stroke: '#78350f', labelColor: '#ffffff' },
+  { name: '灰', fill: '#9ca3af', stroke: '#6b7280', labelColor: '#111827' },
+  { name: '白', fill: '#f8fafc', stroke: '#94a3b8', labelColor: '#0f172a' },
+  { name: '红', fill: '#dc2626', stroke: '#b91c1c', labelColor: '#ffffff' },
+  { name: '黑', fill: '#111827', stroke: '#020617', labelColor: '#ffffff' },
+  { name: '黄', fill: '#facc15', stroke: '#ca8a04', labelColor: '#111827' },
+  { name: '紫', fill: '#7c3aed', stroke: '#6d28d9', labelColor: '#ffffff' },
+  { name: '粉红', fill: '#ec4899', stroke: '#db2777', labelColor: '#ffffff' },
+  { name: '青绿', fill: '#14b8a6', stroke: '#0f766e', labelColor: '#ffffff' },
+]
+
+const DEFAULT_TUBE_COLOR: FiberColorBand = {
+  name: '默认蓝',
+  fill: '#dbeafe',
+  stroke: '#3b82f6',
+  labelColor: '#1e3a8a',
+}
+
+const DEFAULT_CORE_COLOR: FiberColorBand = {
+  name: '默认黄',
+  fill: '#facc15',
+  stroke: '#ca8a04',
+  labelColor: '#111827',
+}
 
 const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
   '144': {
@@ -47,6 +84,8 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     coreGridSpacingX: 24,
     coreGridSpacingY: 24,
     rings: [{ radius: 230, tubeCount: 12 }],
+    tubeColorSequence: STANDARD_COLOR_SEQUENCE,
+    coreColorSequence: STANDARD_COLOR_SEQUENCE,
   },
   '288': {
     label: '288 芯',
@@ -69,6 +108,15 @@ function getTubeCount(layout: FiberLayout): number {
   return layout.rings.reduce((sum, ring) => sum + ring.tubeCount, 0)
 }
 
+function getColorBand(
+  sequence: FiberColorBand[] | undefined,
+  index: number,
+  fallback: FiberColorBand,
+): FiberColorBand {
+  if (!sequence?.length) return fallback
+  return sequence[(index - 1) % sequence.length]
+}
+
 function makeTube(
   fabricCanvas: Canvas,
   layout: FiberLayout,
@@ -77,12 +125,13 @@ function makeTube(
   centerX: number,
   centerY: number,
 ): void {
+  const tubeColor = getColorBand(layout.tubeColorSequence, tubeIndex, DEFAULT_TUBE_COLOR)
   const tubeCircle = new Circle({
     left: centerX,
     top: centerY,
     radius: layout.tubeRadius,
-    fill: '#dbeafe',
-    stroke: '#3b82f6',
+    fill: tubeColor.fill,
+    stroke: tubeColor.stroke,
     strokeWidth: 3,
     originX: 'center',
     originY: 'center',
@@ -104,7 +153,7 @@ function makeTube(
     top: centerY,
     fontSize: Math.max(14, layout.tubeRadius * 0.36),
     fontWeight: 'bold',
-    fill: '#1e3a8a',
+    fill: tubeColor.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
     originX: 'center',
     originY: 'center',
     selectable: false,
@@ -120,12 +169,13 @@ function makeTube(
       const coreX = centerX - coreGridWidth / 2 + col * layout.coreGridSpacingX
       const coreY = centerY - coreGridHeight / 2 + row * layout.coreGridSpacingY
       const coreIndex = row * layout.coreColumns + col + 1
+      const coreColor = getColorBand(layout.coreColorSequence, coreIndex, DEFAULT_CORE_COLOR)
       const coreCircle = new Circle({
         left: coreX,
         top: coreY,
         radius: layout.coreRadius,
-        fill: '#facc15',
-        stroke: '#ca8a04',
+        fill: coreColor.fill,
+        stroke: coreColor.stroke,
         strokeWidth: 1.5,
         originX: 'center',
         originY: 'center',
@@ -155,6 +205,7 @@ function FiberCrossSection() {
   const layout = FIBER_LAYOUTS[selectedSpec]
   const tubeCount = getTubeCount(layout)
   const coresPerTube = layout.coreColumns * layout.coreRows
+  const colorSequenceNames = layout.tubeColorSequence?.map((color) => color.name).join('、')
 
   useEffect(() => {
     if (!canvasElementRef.current) return
@@ -199,10 +250,25 @@ function FiberCrossSection() {
       if (!target?.fiberMeta) return
 
       if (target.fiberMeta.targetType === 'tube') {
-        setMessage(`管束序号：${target.fiberMeta.tubeIndex}`)
+        const tubeColor = getColorBand(
+          layout.tubeColorSequence,
+          target.fiberMeta.tubeIndex,
+          DEFAULT_TUBE_COLOR,
+        )
+        setMessage(`管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}`)
       } else {
+        const tubeColor = getColorBand(
+          layout.tubeColorSequence,
+          target.fiberMeta.tubeIndex,
+          DEFAULT_TUBE_COLOR,
+        )
+        const coreColor = getColorBand(
+          layout.coreColorSequence,
+          target.fiberMeta.coreIndex ?? 1,
+          DEFAULT_CORE_COLOR,
+        )
         setMessage(
-          `管束序号：${target.fiberMeta.tubeIndex}，管束内纤芯序号：${target.fiberMeta.coreIndex}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
+          `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${coreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
         )
       }
       setOpen(true)
@@ -242,6 +308,29 @@ function FiberCrossSection() {
       <Paragraph style={{ marginBottom: 0 }}>
         <AntText strong>交互说明：</AntText>点击任意管束或纤芯，会弹出对应序号信息。
       </Paragraph>
+      {colorSequenceNames ? (
+        <Space direction="vertical" size={8} align="center">
+          <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
+            <AntText strong>色谱顺序：</AntText>
+            144 芯束管色谱与纤芯色谱均按 {colorSequenceNames} 排列。
+          </Paragraph>
+          <div className="flex flex-wrap justify-center gap-2">
+            {layout.tubeColorSequence?.map((color, index) => (
+              <span
+                key={color.name}
+                className="rounded-full border px-3 py-1 text-sm shadow-sm"
+                style={{
+                  backgroundColor: color.fill,
+                  borderColor: color.stroke,
+                  color: color.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
+                }}
+              >
+                {index + 1}. {color.name}
+              </span>
+            ))}
+          </div>
+        </Space>
+      ) : null}
       <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <canvas ref={canvasElementRef} />
       </div>
@@ -253,7 +342,7 @@ function FiberCrossSection() {
         okText="确定"
         cancelText="关闭"
       >
-        <Paragraph style={{ marginBottom: 0 }}>{message}</Paragraph>
+        <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-line' }}>{message}</Paragraph>
       </Modal>
     </div>
   )
