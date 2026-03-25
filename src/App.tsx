@@ -22,7 +22,7 @@ function App() {
                 光纤横切面（Fabric.js）
               </Title>
               <Paragraph style={{ marginBottom: 0 }}>
-                点击管束或纤芯后，会弹出弹框，显示对应的管束序号和纤芯序号。
+                支持 144 芯和 288 芯两种规格切换；点击管束或纤芯后，会弹出弹框，显示对应的编号信息。
               </Paragraph>
               <FiberCrossSection />
             </Space>
