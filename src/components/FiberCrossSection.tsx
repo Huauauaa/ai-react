@@ -20,9 +20,11 @@ const OUTER_RADIUS = 300
 const TUBE_RADIUS = 75
 const CORE_RADIUS = 15
 const ORBIT_TUBE_COUNT = 6
-const CORES_PER_TUBE = 7
 const ORBIT_RADIUS = 190
-const CORE_RING_RADIUS = 30
+const CORE_COLUMNS = 4
+const CORE_ROWS = 3
+const CORE_GRID_SPACING_X = 30
+const CORE_GRID_SPACING_Y = 30
 
 function makeTube(
   fabricCanvas: Canvas,
@@ -65,32 +67,36 @@ function makeTube(
   })
   fabricCanvas.add(label)
 
-  for (let i = 0; i < CORES_PER_TUBE; i += 1) {
-    const coreAngle = i === 0 ? 0 : (Math.PI * 2 * (i - 1)) / (CORES_PER_TUBE - 1)
-    const coreX = i === 0 ? centerX : centerX + CORE_RING_RADIUS * Math.cos(coreAngle)
-    const coreY = i === 0 ? centerY : centerY + CORE_RING_RADIUS * Math.sin(coreAngle)
-    const coreCircle = new Circle({
-      left: coreX,
-      top: coreY,
-      radius: CORE_RADIUS,
-      fill: '#facc15',
-      stroke: '#ca8a04',
-      strokeWidth: 1.5,
-      originX: 'center',
-      originY: 'center',
-      hasControls: false,
-      hasBorders: false,
-      lockMovementX: true,
-      lockMovementY: true,
-      hoverCursor: 'pointer',
-    }) as FiberObject
+  const coreGridWidth = (CORE_COLUMNS - 1) * CORE_GRID_SPACING_X
+  const coreGridHeight = (CORE_ROWS - 1) * CORE_GRID_SPACING_Y
 
-    coreCircle.fiberMeta = {
-      targetType: 'core',
-      tubeIndex,
-      coreIndex: i + 1,
+  for (let row = 0; row < CORE_ROWS; row += 1) {
+    for (let col = 0; col < CORE_COLUMNS; col += 1) {
+      const coreX = centerX - coreGridWidth / 2 + col * CORE_GRID_SPACING_X
+      const coreY = centerY - coreGridHeight / 2 + row * CORE_GRID_SPACING_Y
+      const coreCircle = new Circle({
+        left: coreX,
+        top: coreY,
+        radius: CORE_RADIUS,
+        fill: '#facc15',
+        stroke: '#ca8a04',
+        strokeWidth: 1.5,
+        originX: 'center',
+        originY: 'center',
+        hasControls: false,
+        hasBorders: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        hoverCursor: 'pointer',
+      }) as FiberObject
+
+      coreCircle.fiberMeta = {
+        targetType: 'core',
+        tubeIndex,
+        coreIndex: row * CORE_COLUMNS + col + 1,
+      }
+      fabricCanvas.add(coreCircle)
     }
-    fabricCanvas.add(coreCircle)
   }
 }
 
