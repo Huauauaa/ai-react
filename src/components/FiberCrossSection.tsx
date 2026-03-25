@@ -172,13 +172,14 @@ function makeTube(
   centerY: number,
 ): void {
   const tubeColor = getColorBand(layout.tubeColorSequence, tubeIndex, DEFAULT_TUBE_COLOR)
+  const tubeShellWidth = Math.max(6, Math.round(layout.tubeRadius * 0.14))
   const tubeCircle = new Circle({
     left: centerX,
     top: centerY,
     radius: layout.tubeRadius,
     fill: tubeColor.fill,
     stroke: tubeColor.stroke,
-    strokeWidth: 3,
+    strokeWidth: 1.5,
     originX: 'center',
     originY: 'center',
     hasControls: false,
@@ -194,12 +195,24 @@ function makeTube(
   }
   fabricCanvas.add(tubeCircle)
 
+  const tubeCore = new Circle({
+    left: centerX,
+    top: centerY,
+    radius: layout.tubeRadius - tubeShellWidth,
+    fill: '#ffffff',
+    originX: 'center',
+    originY: 'center',
+    selectable: false,
+    evented: false,
+  })
+  fabricCanvas.add(tubeCore)
+
   const label = new Text(String(tubeIndex), {
     left: centerX,
     top: centerY,
     fontSize: Math.max(14, layout.tubeRadius * 0.36),
     fontWeight: 'bold',
-    fill: tubeColor.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
+    fill: tubeColor.stroke,
     originX: 'center',
     originY: 'center',
     selectable: false,
