@@ -5,9 +5,6 @@ import { Canvas, Circle } from 'fabric'
 const { Paragraph, Text: AntText } = Typography
 
 type FiberTargetType = 'tube' | 'core'
-const SINGLE_RING_TOTALS = [12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144] as const
-type SingleRingFiberSpec = `${(typeof SINGLE_RING_TOTALS)[number]}`
-type FiberSpec = SingleRingFiberSpec | '288'
 type TemplateSpec = '144' | '288'
 
 type FiberMeta = {
@@ -97,6 +94,10 @@ const OUTER_TUBE_COLOR_SEQUENCE = [
 ]
 const STANDARD_COLOR_SEQUENCE_TEXT = STANDARD_COLOR_SEQUENCE.map((color) => color.name).join('、')
 const SINGLE_RING_SLOT_COUNT = 12
+const INNER_RING_SLOT_COUNT = 9
+const OUTER_RING_SLOT_COUNT = 15
+const DOUBLE_RING_SLOT_COUNT = INNER_RING_SLOT_COUNT + OUTER_RING_SLOT_COUNT
+const CORES_PER_TUBE = STANDARD_COLOR_SEQUENCE.length
 const SINGLE_RING_EMPTY_SLOT_PRIORITY = [6, 7, 8, 9, 10, 11, 12, 5, 4, 3, 2, 1] as const
 
 const DEFAULT_TUBE_COLOR: FiberColorBand = {
@@ -118,9 +119,14 @@ const EMPTY_SLOT_COLOR = {
   stroke: '#cbd5e1',
 }
 
+function getRequiredTubeCount(totalCores: number, slotCount: number): number {
+  if (totalCores <= 0) return 0
+  return Math.min(slotCount, Math.ceil(totalCores / CORES_PER_TUBE))
+}
+
 function getSingleRingEmptySlotIndices(totalCores: number): number[] {
-  const tubeCount = totalCores / STANDARD_COLOR_SEQUENCE.length
-  const emptyCount = SINGLE_RING_SLOT_COUNT - tubeCount
+  const tubeCount = getRequiredTubeCount(totalCores, SINGLE_RING_SLOT_COUNT)
+  const emptyCount = Math.max(0, SINGLE_RING_SLOT_COUNT - tubeCount)
   return [...SINGLE_RING_EMPTY_SLOT_PRIORITY.slice(0, emptyCount)]
 }
 
@@ -137,7 +143,7 @@ function getSingleRingTubeLegendDescription(emptySlotIndices: number[]): string 
 }
 
 function createSingleRingLayout(totalCores: number): FiberLayout {
-  const tubeCount = totalCores / STANDARD_COLOR_SEQUENCE.length
+  const tubeCount = getRequiredTubeCount(totalCores, SINGLE_RING_SLOT_COUNT)
   const emptySlotIndices = getSingleRingEmptySlotIndices(totalCores)
   const emptyCount = emptySlotIndices.length
 
@@ -179,19 +185,38 @@ function createSingleRingLayout(totalCores: number): FiberLayout {
   }
 }
 
-const SINGLE_RING_LAYOUTS = Object.fromEntries(
-  SINGLE_RING_TOTALS.map((totalCores) => [
-    `${totalCores}` as SingleRingFiberSpec,
-    createSingleRingLayout(totalCores),
-  ]),
-) as Record<SingleRingFiberSpec, FiberLayout>
+function getDoubleRingOuterEmptySlotIndices(totalCores: number): number[] {
+  const tubeCount = getRequiredTubeCount(totalCores, DOUBLE_RING_SLOT_COUNT)
+  const outerTubeCount = Math.max(0, tubeCount - INNER_RING_SLOT_COUNT)
+  const outerEmptyCount = Math.max(0, OUTER_RING_SLOT_COUNT - outerTubeCount)
+  return Array.from({ length: outerEmptyCount }, (_, index) => outerTubeCount + index + 1)
+}
 
-const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
-  ...SINGLE_RING_LAYOUTS,
-  '288': {
-    label: '288 芯',
-    totalCores: 288,
-    arrangementLabel: '双圈排布：内圈 9 个，外圈 15 个',
+function getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices: number[]): string {
+  const baseDescription = `依次为 ${OUTER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`
+  if (!outerEmptySlotIndices.length) {
+    return baseDescription
+  }
+
+  const emptySlotNames = outerEmptySlotIndices
+    .map((slotIndex) => getColorBand(OUTER_TUBE_COLOR_SEQUENCE, slotIndex, DEFAULT_TUBE_COLOR).name)
+    .join('、')
+
+  return `${baseDescription.slice(0, -1)}，其中 ${emptySlotNames} 管位为空圆占位。`
+}
+
+function createDoubleRingLayout(totalCores: number): FiberLayout {
+  const tubeCount = getRequiredTubeCount(totalCores, DOUBLE_RING_SLOT_COUNT)
+  const outerEmptySlotIndices = getDoubleRingOuterEmptySlotIndices(totalCores)
+  const emptyCount = outerEmptySlotIndices.length
+
+  return {
+    label: `${totalCores} 芯`,
+    totalCores,
+    arrangementLabel:
+      emptyCount > 0
+        ? `${DOUBLE_RING_SLOT_COUNT} 个管位双圈排布：${tubeCount} 个管束 + ${emptyCount} 个空圆`
+        : `双圈排布：内圈 ${INNER_RING_SLOT_COUNT} 个，外圈 ${OUTER_RING_SLOT_COUNT} 个`,
     isolationLayerMaxRadius: DEFAULT_ISOLATION_LAYER_MAX_RADIUS,
     tubeRadius: 38,
     coreRadius: 6,
@@ -200,8 +225,12 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
     coreGridSpacingX: 15,
     coreGridSpacingY: 15,
     rings: [
-      { radius: 150, slotCount: 9 },
-      { radius: 250, slotCount: 15 },
+      { radius: 150, slotCount: INNER_RING_SLOT_COUNT },
+      {
+        radius: 250,
+        slotCount: OUTER_RING_SLOT_COUNT,
+        emptySlotIndices: emptyCount > 0 ? outerEmptySlotIndices : undefined,
+      },
     ],
     tubeColorSequence: [...INNER_TUBE_COLOR_SEQUENCE, ...OUTER_TUBE_COLOR_SEQUENCE],
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
@@ -214,7 +243,7 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
       },
       {
         title: '束管色谱（外圈第 10-24 管）',
-        description: `依次为 ${OUTER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`,
+        description: getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices),
         sequence: OUTER_TUBE_COLOR_SEQUENCE,
         indexStart: 10,
       },
@@ -224,7 +253,13 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
         sequence: STANDARD_COLOR_SEQUENCE,
       },
     ],
-  },
+  }
+}
+
+function resolveLayout(totalCores: number): FiberLayout | null {
+  if (totalCores <= 144) return createSingleRingLayout(totalCores)
+  if (totalCores > 144 && totalCores < 288) return createDoubleRingLayout(totalCores)
+  return null
 }
 
 function resolveTemplateSpec(totalCores: number): TemplateSpec | null {
@@ -440,7 +475,7 @@ function FiberCrossSection() {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const selectedTemplateSpec = resolveTemplateSpec(coreCountInput)
-  const layout = selectedTemplateSpec ? FIBER_LAYOUTS[selectedTemplateSpec] : null
+  const layout = resolveLayout(coreCountInput)
   const tubeCount = layout ? getTubeCount(layout) : 0
   const tubeSlotCount = layout ? getTubeSlotCount(layout) : 0
   const coresPerTube = layout ? layout.coreColumns * layout.coreRows : 0
