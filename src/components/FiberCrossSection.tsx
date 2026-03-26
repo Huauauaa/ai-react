@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Modal, Select, Space, Typography } from 'antd'
+import { InputNumber, Modal, Space, Typography } from 'antd'
 import { Canvas, Circle } from 'fabric'
 
 const { Paragraph, Text: AntText } = Typography
@@ -8,6 +8,7 @@ type FiberTargetType = 'tube' | 'core'
 const SINGLE_RING_TOTALS = [12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144] as const
 type SingleRingFiberSpec = `${(typeof SINGLE_RING_TOTALS)[number]}`
 type FiberSpec = SingleRingFiberSpec | '288'
+type TemplateSpec = '144' | '288'
 
 type FiberMeta = {
   targetType: FiberTargetType
@@ -185,14 +186,6 @@ const SINGLE_RING_LAYOUTS = Object.fromEntries(
   ]),
 ) as Record<SingleRingFiberSpec, FiberLayout>
 
-const FIBER_SPEC_OPTIONS: { label: string; value: FiberSpec }[] = [
-  ...SINGLE_RING_TOTALS.map((totalCores) => ({
-    label: `${totalCores} 芯`,
-    value: `${totalCores}` as SingleRingFiberSpec,
-  })),
-  { label: '288 芯', value: '288' },
-]
-
 const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
   ...SINGLE_RING_LAYOUTS,
   '288': {
@@ -232,6 +225,12 @@ const FIBER_LAYOUTS: Record<FiberSpec, FiberLayout> = {
       },
     ],
   },
+}
+
+function resolveTemplateSpec(totalCores: number): TemplateSpec | null {
+  if (totalCores <= 144) return '144'
+  if (totalCores > 144 && totalCores < 288) return '288'
+  return null
 }
 
 function getTubeCount(layout: FiberLayout): number {
@@ -437,18 +436,25 @@ function makeEmptyTube(fabricCanvas: Canvas, layout: FiberLayout, centerX: numbe
 
 function FiberCrossSection() {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
-  const [selectedSpec, setSelectedSpec] = useState<FiberSpec>('144')
+  const [coreCountInput, setCoreCountInput] = useState<number>(144)
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
-  const layout = FIBER_LAYOUTS[selectedSpec]
-  const tubeCount = getTubeCount(layout)
-  const tubeSlotCount = getTubeSlotCount(layout)
-  const coresPerTube = layout.coreColumns * layout.coreRows
+  const selectedTemplateSpec = resolveTemplateSpec(coreCountInput)
+  const layout = selectedTemplateSpec ? FIBER_LAYOUTS[selectedTemplateSpec] : null
+  const tubeCount = layout ? getTubeCount(layout) : 0
+  const tubeSlotCount = layout ? getTubeSlotCount(layout) : 0
+  const coresPerTube = layout ? layout.coreColumns * layout.coreRows : 0
 
   useEffect(() => {
-    if (!canvasElementRef.current) return
+    const canvasElement = canvasElementRef.current
+    if (!canvasElement) return
+    if (!layout) {
+      const context = canvasElement.getContext('2d')
+      context?.clearRect(0, 0, canvasElement.width, canvasElement.height)
+      return
+    }
 
-    const fabricCanvas = new Canvas(canvasElementRef.current, {
+    const fabricCanvas = new Canvas(canvasElement, {
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
       backgroundColor: '#f8fafc',
@@ -623,72 +629,94 @@ function FiberCrossSection() {
   return (
     <div className="flex flex-col items-center gap-4">
       <Space direction="vertical" size={8} align="center">
-        <Select
-          value={selectedSpec}
-          options={FIBER_SPEC_OPTIONS}
-          onChange={(value) => setSelectedSpec(value)}
+        <InputNumber
+          value={coreCountInput}
+          min={0}
+          precision={0}
+          onChange={(value) => {
+            if (typeof value !== 'number') return
+            setCoreCountInput(Math.max(0, Math.floor(value)))
+          }}
           style={{ minWidth: 240 }}
         />
         <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-          <AntText strong>当前规格：</AntText>
-          {layout.label}
+          <AntText strong>输入芯数：</AntText>
+          {coreCountInput}
           {' · '}
-          <AntText strong>排布：</AntText>
-          {layout.arrangementLabel}
-          {' · '}
-          <AntText strong>管束数：</AntText>
-          {tubeCount}
-          {' · '}
-          <AntText strong>管位数：</AntText>
-          {tubeSlotCount}
-          {' · '}
-          <AntText strong>每管纤芯数：</AntText>
-          {coresPerTube}
+          <AntText strong>模板匹配：</AntText>
+          {selectedTemplateSpec ? `${layout?.label} 模板` : '不处理（芯数 ≥ 288）'}
+          {layout ? (
+            <>
+              {' · '}
+              <AntText strong>当前规格：</AntText>
+              {layout.label}
+              {' · '}
+              <AntText strong>排布：</AntText>
+              {layout.arrangementLabel}
+              {' · '}
+              <AntText strong>管束数：</AntText>
+              {tubeCount}
+              {' · '}
+              <AntText strong>管位数：</AntText>
+              {tubeSlotCount}
+              {' · '}
+              <AntText strong>每管纤芯数：</AntText>
+              {coresPerTube}
+            </>
+          ) : null}
         </Paragraph>
       </Space>
-      <Paragraph style={{ marginBottom: 0 }}>
-        <AntText strong>交互说明：</AntText>悬停任意管束或纤芯可查看激活高亮，点击后会保留选中样式并弹出对应序号信息。
-      </Paragraph>
-      {layout.colorLegends?.length ? (
-        <Space direction="vertical" size={8} align="center">
-          {layout.colorLegends.map((legend) => (
-            <Space key={legend.title} direction="vertical" size={8} align="center">
-              <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-                <AntText strong>{legend.title}：</AntText>
-                {legend.description}
-              </Paragraph>
-              <div className="flex flex-wrap justify-center gap-2">
-                {legend.sequence.map((color, index) => (
-                  <span
-                    key={`${legend.title}-${legend.indexStart ?? 1}-${index}-${color.name}`}
-                    className="rounded-full border px-3 py-1 text-sm shadow-sm"
-                    style={{
-                      backgroundColor: color.fill,
-                      borderColor: color.stroke,
-                      color: color.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
-                    }}
-                  >
-                    {(legend.indexStart ?? 1) + index}. {color.name}
-                  </span>
-                ))}
-              </div>
+      {layout ? (
+        <>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <AntText strong>交互说明：</AntText>悬停任意管束或纤芯可查看激活高亮，点击后会保留选中样式并弹出对应序号信息。
+          </Paragraph>
+          {layout.colorLegends?.length ? (
+            <Space direction="vertical" size={8} align="center">
+              {layout.colorLegends.map((legend) => (
+                <Space key={legend.title} direction="vertical" size={8} align="center">
+                  <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
+                    <AntText strong>{legend.title}：</AntText>
+                    {legend.description}
+                  </Paragraph>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {legend.sequence.map((color, index) => (
+                      <span
+                        key={`${legend.title}-${legend.indexStart ?? 1}-${index}-${color.name}`}
+                        className="rounded-full border px-3 py-1 text-sm shadow-sm"
+                        style={{
+                          backgroundColor: color.fill,
+                          borderColor: color.stroke,
+                          color: color.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
+                        }}
+                      >
+                        {(legend.indexStart ?? 1) + index}. {color.name}
+                      </span>
+                    ))}
+                  </div>
+                </Space>
+              ))}
             </Space>
-          ))}
-        </Space>
-      ) : null}
-      <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <canvas ref={canvasElementRef} />
-      </div>
-      <Modal
-        open={open}
-        title="横切面编号信息"
-        onCancel={() => setOpen(false)}
-        onOk={() => setOpen(false)}
-        okText="确定"
-        cancelText="关闭"
-      >
-        <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-line' }}>{message}</Paragraph>
-      </Modal>
+          ) : null}
+          <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <canvas ref={canvasElementRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
+          </div>
+          <Modal
+            open={open}
+            title="横切面编号信息"
+            onCancel={() => setOpen(false)}
+            onOk={() => setOpen(false)}
+            okText="确定"
+            cancelText="关闭"
+          >
+            <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-line' }}>{message}</Paragraph>
+          </Modal>
+        </>
+      ) : (
+        <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
+          <AntText type="warning">当前芯数大于等于 288，不进行模板渲染。</AntText>
+        </Paragraph>
+      )}
     </div>
   )
 }
