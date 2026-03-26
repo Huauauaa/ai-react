@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { InputNumber, Modal, Space, Typography } from 'antd'
-import { Canvas, Circle } from 'fabric'
+import { fabric } from 'fabric'
+
+const { Canvas, Circle } = fabric
 
 const { Paragraph, Text: AntText } = Typography
 
@@ -20,7 +22,7 @@ type FiberVisualState = {
   baseStrokeWidth: number
 }
 
-type FiberObject = Circle & {
+type FiberObject = fabric.Circle & {
   fiberMeta?: FiberMeta
   fiberVisualState?: FiberVisualState
 }
@@ -360,7 +362,7 @@ function setFiberVisualState(
 }
 
 function makeTube(
-  fabricCanvas: Canvas,
+  fabricCanvas: fabric.Canvas,
   layout: FiberLayout,
   tubeIndex: number,
   tubeSlotIndex: number,
@@ -453,7 +455,12 @@ function makeTube(
   }
 }
 
-function makeEmptyTube(fabricCanvas: Canvas, layout: FiberLayout, centerX: number, centerY: number): void {
+function makeEmptyTube(
+  fabricCanvas: fabric.Canvas,
+  layout: FiberLayout,
+  centerX: number,
+  centerY: number,
+): void {
   const emptyCircle = new Circle({
     left: centerX,
     top: centerY,
