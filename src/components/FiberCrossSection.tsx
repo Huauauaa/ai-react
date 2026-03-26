@@ -90,15 +90,15 @@ const STANDARD_COLOR_SEQUENCE: FiberColorBand[] = [
   { name: '粉红', fill: '#ec4899', stroke: '#db2777', labelColor: '#ffffff' },
   { name: '青绿', fill: '#14b8a6', stroke: '#0f766e', labelColor: '#ffffff' },
 ]
-const INNER_TUBE_COLOR_SEQUENCE = STANDARD_COLOR_SEQUENCE.slice(0, 8)
+const INNER_TUBE_COLOR_SEQUENCE = STANDARD_COLOR_SEQUENCE.slice(0, 9)
 const OUTER_TUBE_COLOR_SEQUENCE = [
   ...STANDARD_COLOR_SEQUENCE,
-  ...STANDARD_COLOR_SEQUENCE.slice(0, 4),
+  ...STANDARD_COLOR_SEQUENCE.slice(0, 3),
 ]
 const STANDARD_COLOR_SEQUENCE_TEXT = STANDARD_COLOR_SEQUENCE.map((color) => color.name).join('、')
 const SINGLE_RING_SLOT_COUNT = 12
-const INNER_RING_SLOT_COUNT = 8
-const OUTER_RING_SLOT_COUNT = 16
+const INNER_RING_SLOT_COUNT = 9
+const OUTER_RING_SLOT_COUNT = 15
 const DOUBLE_RING_SLOT_COUNT = INNER_RING_SLOT_COUNT + OUTER_RING_SLOT_COUNT
 const CORES_PER_TUBE = STANDARD_COLOR_SEQUENCE.length
 const SINGLE_RING_EMPTY_SLOT_PRIORITY = [6, 7, 8, 9, 10, 11, 12, 5, 4, 3, 2, 1] as const
@@ -249,16 +249,16 @@ function createDoubleRingLayout(totalCores: number): FiberLayout {
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
     colorLegends: [
       {
-        title: '束管色谱（内圈第 1-8 管）',
+        title: '束管色谱（内圈第 1-9 管）',
         description: `从 1 点钟方向蓝色开始，依次为 ${INNER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`,
         sequence: INNER_TUBE_COLOR_SEQUENCE,
         indexStart: 1,
       },
       {
-        title: '束管色谱（外圈第 9-24 管）',
+        title: '束管色谱（外圈第 10-24 管）',
         description: getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices),
         sequence: OUTER_TUBE_COLOR_SEQUENCE,
-        indexStart: 9,
+        indexStart: 10,
       },
       {
         title: '纤芯色谱',
