@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { InputNumber, Modal, Select, Space, Typography } from 'antd'
 import { fabric } from 'fabric'
 
@@ -9,6 +9,10 @@ const { Paragraph, Text: AntText } = Typography
 type FiberTargetType = 'tube' | 'core'
 type TemplateSpec = '144' | '288'
 type TemplateMode = 'auto' | TemplateSpec
+export type FiberCoreColorMap = Record<string, string>
+type FiberCrossSectionProps = {
+  coreColorMap?: FiberCoreColorMap
+}
 
 type FiberMeta = {
   targetType: FiberTargetType
@@ -124,6 +128,44 @@ const DEFAULT_CORE_COLOR: FiberColorBand = {
 const EMPTY_SLOT_COLOR = {
   fill: '#ffffff',
   stroke: '#cbd5e1',
+}
+const CORE_COLOR_ALIAS_MAP: Record<string, FiberColorBand> = {
+  蓝: STANDARD_COLOR_SEQUENCE[0],
+  蓝色: STANDARD_COLOR_SEQUENCE[0],
+  orange: STANDARD_COLOR_SEQUENCE[1],
+  橙: STANDARD_COLOR_SEQUENCE[1],
+  橙色: STANDARD_COLOR_SEQUENCE[1],
+  green: STANDARD_COLOR_SEQUENCE[2],
+  绿: STANDARD_COLOR_SEQUENCE[2],
+  绿色: STANDARD_COLOR_SEQUENCE[2],
+  brown: STANDARD_COLOR_SEQUENCE[3],
+  棕: STANDARD_COLOR_SEQUENCE[3],
+  棕色: STANDARD_COLOR_SEQUENCE[3],
+  gray: STANDARD_COLOR_SEQUENCE[4],
+  grey: STANDARD_COLOR_SEQUENCE[4],
+  灰: STANDARD_COLOR_SEQUENCE[4],
+  灰色: STANDARD_COLOR_SEQUENCE[4],
+  white: STANDARD_COLOR_SEQUENCE[5],
+  白: STANDARD_COLOR_SEQUENCE[5],
+  白色: STANDARD_COLOR_SEQUENCE[5],
+  red: STANDARD_COLOR_SEQUENCE[6],
+  红: STANDARD_COLOR_SEQUENCE[6],
+  红色: STANDARD_COLOR_SEQUENCE[6],
+  black: STANDARD_COLOR_SEQUENCE[7],
+  黑: STANDARD_COLOR_SEQUENCE[7],
+  黑色: STANDARD_COLOR_SEQUENCE[7],
+  yellow: STANDARD_COLOR_SEQUENCE[8],
+  黄: STANDARD_COLOR_SEQUENCE[8],
+  黄色: STANDARD_COLOR_SEQUENCE[8],
+  purple: STANDARD_COLOR_SEQUENCE[9],
+  紫: STANDARD_COLOR_SEQUENCE[9],
+  紫色: STANDARD_COLOR_SEQUENCE[9],
+  pink: STANDARD_COLOR_SEQUENCE[10],
+  粉红: STANDARD_COLOR_SEQUENCE[10],
+  粉色: STANDARD_COLOR_SEQUENCE[10],
+  teal: STANDARD_COLOR_SEQUENCE[11],
+  青绿: STANDARD_COLOR_SEQUENCE[11],
+  青绿色: STANDARD_COLOR_SEQUENCE[11],
 }
 
 function getRequiredTubeCount(totalCores: number, slotCount: number): number {
@@ -342,6 +384,60 @@ function getColorBand(
   return sequence[(index - 1) % sequence.length]
 }
 
+function normalizeColorToken(colorInput: string): string {
+  return colorInput.trim().toLowerCase().replace(/\s+/g, '')
+}
+
+function parseFiberCorePositionKey(positionKey: string): { tubeIndex: number; coreIndex: number } | null {
+  const matched = positionKey.trim().match(/^(\d+)\s*-\s*(\d+)$/)
+  if (!matched) return null
+
+  const tubeIndex = Number(matched[1])
+  const coreIndex = Number(matched[2])
+  if (!Number.isInteger(tubeIndex) || !Number.isInteger(coreIndex)) return null
+  if (tubeIndex <= 0 || coreIndex <= 0) return null
+
+  return { tubeIndex, coreIndex }
+}
+
+function resolveCustomCoreColorBand(colorInput: string): FiberColorBand | null {
+  const token = normalizeColorToken(colorInput)
+  const aliasColorBand = CORE_COLOR_ALIAS_MAP[token]
+  if (aliasColorBand) return aliasColorBand
+
+  const cssColor = colorInput.trim()
+  const isCssColor =
+    /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(cssColor) ||
+    /^rgba?\(/i.test(cssColor) ||
+    /^hsla?\(/i.test(cssColor)
+
+  if (!isCssColor) return null
+
+  return {
+    name: cssColor,
+    fill: cssColor,
+    stroke: '#334155',
+    labelColor: '#ffffff',
+  }
+}
+
+function resolveCoreColorMap(coreColorMap: FiberCoreColorMap | undefined): Map<string, FiberColorBand> {
+  const resolvedCoreColorMap = new Map<string, FiberColorBand>()
+  if (!coreColorMap) return resolvedCoreColorMap
+
+  for (const [positionKey, colorInput] of Object.entries(coreColorMap)) {
+    const position = parseFiberCorePositionKey(positionKey)
+    if (!position) continue
+
+    const colorBand = resolveCustomCoreColorBand(colorInput)
+    if (!colorBand) continue
+
+    resolvedCoreColorMap.set(`${position.tubeIndex}-${position.coreIndex}`, colorBand)
+  }
+
+  return resolvedCoreColorMap
+}
+
 function getTubeCoreLayout(layout: FiberLayout, tubeShellWidth: number): TubeCoreLayout {
   const halfGridWidth = ((layout.coreColumns - 1) * layout.coreGridSpacingX) / 2
   const halfGridHeight = ((layout.coreRows - 1) * layout.coreGridSpacingY) / 2
@@ -417,6 +513,8 @@ function makeTube(
   globalCoreStartIndex: number,
   centerX: number,
   centerY: number,
+  useCustomCoreColorMap: boolean,
+  customCoreColorMap: Map<string, FiberColorBand>,
 ): void {
   const tubeColor = getColorBand(layout.tubeColorSequence, tubeSlotIndex, DEFAULT_TUBE_COLOR)
   const tubeShellWidth = Math.max(6, Math.round(layout.tubeRadius * 0.14))
@@ -469,7 +567,11 @@ function makeTube(
       const coreX = centerX - coreGridWidth / 2 + col * tubeCoreLayout.spacingX
       const coreY = centerY - coreGridHeight / 2 + row * tubeCoreLayout.spacingY
       const coreIndex = row * layout.coreColumns + col + 1
-      const coreColor = getColorBand(layout.coreColorSequence, coreIndex, DEFAULT_CORE_COLOR)
+      const customCoreColor = customCoreColorMap.get(`${tubeIndex}-${coreIndex}`)
+      if (useCustomCoreColorMap && !customCoreColor) {
+        continue
+      }
+      const coreColor = customCoreColor ?? getColorBand(layout.coreColorSequence, coreIndex, DEFAULT_CORE_COLOR)
       const coreCircle = new Circle({
         left: coreX,
         top: coreY,
@@ -524,13 +626,15 @@ function makeEmptyTube(
   fabricCanvas.add(emptyCircle)
 }
 
-function FiberCrossSection() {
+function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const [coreCountInput, setCoreCountInput] = useState<number>(144)
   const [templateMode, setTemplateMode] = useState<TemplateMode>('auto')
   const [renderTubeIndices, setRenderTubeIndices] = useState<number[]>([])
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
+  const useCustomCoreColorMap = coreColorMap !== undefined
+  const resolvedCoreColorMap = useMemo(() => resolveCoreColorMap(coreColorMap), [coreColorMap])
   const selectedTemplateSpec = resolveTemplateSpec(coreCountInput, templateMode)
   const layout = resolveLayout(coreCountInput, selectedTemplateSpec)
   const tubeCount = layout ? getTubeCount(layout) : 0
@@ -624,15 +728,17 @@ function FiberCrossSection() {
             isRenderingAllTubes || renderTubeIndices.includes(actualTubeIndex)
 
           if (shouldRenderCurrentTube) {
-          makeTube(
-            fabricCanvas,
-            layout,
-            actualTubeIndex,
-            tubeSlotIndex,
-            globalCoreStartIndex,
-            centerX,
-            centerY,
-          )
+            makeTube(
+              fabricCanvas,
+              layout,
+              actualTubeIndex,
+              tubeSlotIndex,
+              globalCoreStartIndex,
+              centerX,
+              centerY,
+              useCustomCoreColorMap,
+              resolvedCoreColorMap,
+            )
           }
           actualTubeIndex += 1
           globalCoreStartIndex += coresPerTube
@@ -723,10 +829,15 @@ function FiberCrossSection() {
           target.fiberMeta.coreIndex ?? 1,
           DEFAULT_CORE_COLOR,
         )
+        const customCoreColor =
+          target.fiberMeta.coreIndex !== undefined
+            ? resolvedCoreColorMap.get(`${target.fiberMeta.tubeIndex}-${target.fiberMeta.coreIndex}`)
+            : null
+        const finalCoreColor = customCoreColor ?? coreColor
         setMessage(
           target.fiberMeta.tubeSlotIndex && target.fiberMeta.tubeSlotIndex !== target.fiberMeta.tubeIndex
-            ? `管束序号：${target.fiberMeta.tubeIndex}，管位序号：${target.fiberMeta.tubeSlotIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${coreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`
-            : `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${coreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
+            ? `管束序号：${target.fiberMeta.tubeIndex}，管位序号：${target.fiberMeta.tubeSlotIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${finalCoreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`
+            : `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${finalCoreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
         )
       }
       setOpen(true)
@@ -736,7 +847,14 @@ function FiberCrossSection() {
     return () => {
       fabricCanvas.dispose()
     }
-  }, [coresPerTube, isRenderingAllTubes, layout, renderTubeIndices])
+  }, [
+    coresPerTube,
+    isRenderingAllTubes,
+    layout,
+    renderTubeIndices,
+    resolvedCoreColorMap,
+    useCustomCoreColorMap,
+  ])
 
   return (
     <div className="flex flex-col items-center gap-4">

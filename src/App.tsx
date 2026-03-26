@@ -4,6 +4,11 @@ import FiberCrossSection from './components/FiberCrossSection'
 const { Title, Paragraph, Text } = Typography
 
 function App() {
+  const customCoreColorMap = {
+    '1-1': '蓝色',
+    '1-2': '红色',
+  }
+
   return (
     <ConfigProvider
       theme={{
@@ -24,7 +29,7 @@ function App() {
               <Paragraph style={{ marginBottom: 0 }}>
                 支持输入任意芯数并自动匹配模板：小于等于 144 使用 144 芯模板，大于 144 且小于等于 288 使用 288 芯模板，大于 288 不处理。点击管束或纤芯后，会弹出弹框，显示对应的编号信息。
               </Paragraph>
-              <FiberCrossSection />
+              <FiberCrossSection coreColorMap={customCoreColorMap} />
             </Space>
           </Card>
         </section>
