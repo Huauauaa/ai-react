@@ -131,6 +131,11 @@ function getRequiredTubeCount(totalCores: number, slotCount: number): number {
   return Math.min(slotCount, Math.ceil(totalCores / CORES_PER_TUBE))
 }
 
+function getSequentialEmptySlotIndices(slotCount: number, filledSlotCount: number): number[] {
+  const emptyCount = Math.max(0, slotCount - filledSlotCount)
+  return Array.from({ length: emptyCount }, (_, index) => filledSlotCount + index + 1)
+}
+
 function getSingleRingEmptySlotIndices(totalCores: number): number[] {
   const tubeCount = getRequiredTubeCount(totalCores, SINGLE_RING_SLOT_COUNT)
   const emptyCount = Math.max(0, SINGLE_RING_SLOT_COUNT - tubeCount)
@@ -194,11 +199,33 @@ function createSingleRingLayout(totalCores: number): FiberLayout {
   }
 }
 
-function getDoubleRingOuterEmptySlotIndices(totalCores: number): number[] {
+function getDoubleRingSlotOccupancy(totalCores: number): {
+  tubeCount: number
+  innerEmptySlotIndices: number[]
+  outerEmptySlotIndices: number[]
+} {
   const tubeCount = getRequiredTubeCount(totalCores, DOUBLE_RING_SLOT_COUNT)
+  const innerTubeCount = Math.min(INNER_RING_SLOT_COUNT, tubeCount)
   const outerTubeCount = Math.max(0, tubeCount - INNER_RING_SLOT_COUNT)
-  const outerEmptyCount = Math.max(0, OUTER_RING_SLOT_COUNT - outerTubeCount)
-  return Array.from({ length: outerEmptyCount }, (_, index) => outerTubeCount + index + 1)
+
+  return {
+    tubeCount,
+    innerEmptySlotIndices: getSequentialEmptySlotIndices(INNER_RING_SLOT_COUNT, innerTubeCount),
+    outerEmptySlotIndices: getSequentialEmptySlotIndices(OUTER_RING_SLOT_COUNT, outerTubeCount),
+  }
+}
+
+function getDoubleRingInnerTubeLegendDescription(innerEmptySlotIndices: number[]): string {
+  const baseDescription = `从 1 点钟方向蓝色开始，依次为 ${INNER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`
+  if (!innerEmptySlotIndices.length) {
+    return baseDescription
+  }
+
+  const emptySlotNames = innerEmptySlotIndices
+    .map((slotIndex) => getColorBand(INNER_TUBE_COLOR_SEQUENCE, slotIndex, DEFAULT_TUBE_COLOR).name)
+    .join('、')
+
+  return `${baseDescription.slice(0, -1)}，其中 ${emptySlotNames} 管位为空圆占位。`
 }
 
 function getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices: number[]): string {
@@ -215,9 +242,9 @@ function getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices: number[]
 }
 
 function createDoubleRingLayout(totalCores: number): FiberLayout {
-  const tubeCount = getRequiredTubeCount(totalCores, DOUBLE_RING_SLOT_COUNT)
-  const outerEmptySlotIndices = getDoubleRingOuterEmptySlotIndices(totalCores)
-  const emptyCount = outerEmptySlotIndices.length
+  const { tubeCount, innerEmptySlotIndices, outerEmptySlotIndices } =
+    getDoubleRingSlotOccupancy(totalCores)
+  const emptyCount = innerEmptySlotIndices.length + outerEmptySlotIndices.length
 
   return {
     label: `${totalCores} 芯`,
@@ -238,6 +265,7 @@ function createDoubleRingLayout(totalCores: number): FiberLayout {
         radius: 150,
         slotCount: INNER_RING_SLOT_COUNT,
         startAngleRad: DOUBLE_RING_INNER_START_ANGLE_RAD,
+        emptySlotIndices: innerEmptySlotIndices.length ? innerEmptySlotIndices : undefined,
       },
       {
         radius: 250,
@@ -251,7 +279,7 @@ function createDoubleRingLayout(totalCores: number): FiberLayout {
     colorLegends: [
       {
         title: '束管色谱（内圈第 1-9 管）',
-        description: `从 1 点钟方向蓝色开始，依次为 ${INNER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`,
+        description: getDoubleRingInnerTubeLegendDescription(innerEmptySlotIndices),
         sequence: INNER_TUBE_COLOR_SEQUENCE,
         indexStart: 1,
       },
