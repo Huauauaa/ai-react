@@ -528,7 +528,7 @@ function FiberCrossSection() {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const [coreCountInput, setCoreCountInput] = useState<number>(144)
   const [templateMode, setTemplateMode] = useState<TemplateMode>('auto')
-  const [renderTubeIndex, setRenderTubeIndex] = useState<number | null>(null)
+  const [renderTubeIndices, setRenderTubeIndices] = useState<number[]>([])
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const selectedTemplateSpec = resolveTemplateSpec(coreCountInput, templateMode)
@@ -536,21 +536,18 @@ function FiberCrossSection() {
   const tubeCount = layout ? getTubeCount(layout) : 0
   const tubeSlotCount = layout ? getTubeSlotCount(layout) : 0
   const coresPerTube = layout ? layout.coreColumns * layout.coreRows : 0
-  const renderTubeSelectValue: 'all' | number = renderTubeIndex ?? 'all'
-  const renderTubeOptions: Array<{ value: 'all' | number; label: string }> = [
-    { value: 'all', label: '全部管束' },
-    ...Array.from({ length: tubeCount }, (_, index) => ({
+  const renderTubeOptions: Array<{ value: number; label: string }> = Array.from(
+    { length: tubeCount },
+    (_, index) => ({
       value: index + 1,
       label: `第 ${index + 1} 管束`,
-    })),
-  ]
+    }),
+  )
+  const isRenderingAllTubes = renderTubeIndices.length === 0
 
   useEffect(() => {
-    if (renderTubeIndex === null) return
-    if (renderTubeIndex > tubeCount) {
-      setRenderTubeIndex(null)
-    }
-  }, [renderTubeIndex, tubeCount])
+    setRenderTubeIndices((previous) => previous.filter((tubeIndex) => tubeIndex <= tubeCount))
+  }, [tubeCount])
 
   useEffect(() => {
     const canvasElement = canvasElementRef.current
@@ -619,12 +616,12 @@ function FiberCrossSection() {
         const centerX = CANVAS_CENTER_X + ring.radius * Math.cos(angle)
         const centerY = CANVAS_CENTER_Y + ring.radius * Math.sin(angle)
         if (isEmptySlot(ring, i + 1)) {
-          if (renderTubeIndex === null) {
+          if (isRenderingAllTubes) {
             makeEmptyTube(fabricCanvas, layout, centerX, centerY)
           }
         } else {
           const shouldRenderCurrentTube =
-            renderTubeIndex === null || actualTubeIndex === renderTubeIndex
+            isRenderingAllTubes || renderTubeIndices.includes(actualTubeIndex)
 
           if (shouldRenderCurrentTube) {
           makeTube(
@@ -739,7 +736,7 @@ function FiberCrossSection() {
     return () => {
       fabricCanvas.dispose()
     }
-  }, [coresPerTube, layout, renderTubeIndex])
+  }, [coresPerTube, isRenderingAllTubes, layout, renderTubeIndices])
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -765,11 +762,14 @@ function FiberCrossSection() {
             ]}
             style={{ minWidth: 140 }}
           />
-          <Select<'all' | number>
-            value={renderTubeSelectValue}
-            onChange={(value) => setRenderTubeIndex(value === 'all' ? null : value)}
+          <Select<number[]>
+            mode="multiple"
+            value={renderTubeIndices}
+            onChange={(values) => setRenderTubeIndices(values)}
             options={renderTubeOptions}
-            style={{ minWidth: 160 }}
+            style={{ minWidth: 260 }}
+            maxTagCount="responsive"
+            placeholder="未选择时渲染全部管束"
             disabled={!layout || tubeCount === 0}
           />
         </Space>
@@ -801,7 +801,11 @@ function FiberCrossSection() {
               {coresPerTube}
               {' · '}
               <AntText strong>当前渲染：</AntText>
-              {renderTubeIndex ? `第 ${renderTubeIndex} 管束` : '全部管束'}
+              {isRenderingAllTubes
+                ? '全部管束'
+                : renderTubeIndices
+                    .map((tubeIndex) => `第 ${tubeIndex} 管束`)
+                    .join('、')}
             </>
           ) : null}
         </Paragraph>
