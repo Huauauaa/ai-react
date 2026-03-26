@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { InputNumber, Modal, Space, Typography } from 'antd'
+import { InputNumber, Modal, Select, Space, Typography } from 'antd'
 import { fabric } from 'fabric'
 
 const { Canvas, Circle } = fabric
@@ -8,6 +8,7 @@ const { Paragraph, Text: AntText } = Typography
 
 type FiberTargetType = 'tube' | 'core'
 type TemplateSpec = '144' | '288'
+type TemplateMode = 'auto' | TemplateSpec
 
 type FiberMeta = {
   targetType: FiberTargetType
@@ -269,15 +270,23 @@ function createDoubleRingLayout(totalCores: number): FiberLayout {
   }
 }
 
-function resolveLayout(totalCores: number): FiberLayout | null {
-  if (totalCores <= 144) return createSingleRingLayout(totalCores)
-  if (totalCores > 144 && totalCores <= 288) return createDoubleRingLayout(totalCores)
+function resolveTemplateSpec(totalCores: number, templateMode: TemplateMode): TemplateSpec | null {
+  if (templateMode === '144') {
+    return totalCores <= 144 ? '144' : null
+  }
+
+  if (templateMode === '288') {
+    return totalCores <= 288 ? '288' : null
+  }
+
+  if (totalCores <= 144) return '144'
+  if (totalCores > 144 && totalCores <= 288) return '288'
   return null
 }
 
-function resolveTemplateSpec(totalCores: number): TemplateSpec | null {
-  if (totalCores <= 144) return '144'
-  if (totalCores > 144 && totalCores <= 288) return '288'
+function resolveLayout(totalCores: number, selectedTemplateSpec: TemplateSpec | null): FiberLayout | null {
+  if (selectedTemplateSpec === '144') return createSingleRingLayout(totalCores)
+  if (selectedTemplateSpec === '288') return createDoubleRingLayout(totalCores)
   return null
 }
 
@@ -490,10 +499,11 @@ function makeEmptyTube(
 function FiberCrossSection() {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const [coreCountInput, setCoreCountInput] = useState<number>(144)
+  const [templateMode, setTemplateMode] = useState<TemplateMode>('auto')
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
-  const selectedTemplateSpec = resolveTemplateSpec(coreCountInput)
-  const layout = resolveLayout(coreCountInput)
+  const selectedTemplateSpec = resolveTemplateSpec(coreCountInput, templateMode)
+  const layout = resolveLayout(coreCountInput, selectedTemplateSpec)
   const tubeCount = layout ? getTubeCount(layout) : 0
   const tubeSlotCount = layout ? getTubeSlotCount(layout) : 0
   const coresPerTube = layout ? layout.coreColumns * layout.coreRows : 0
@@ -683,22 +693,37 @@ function FiberCrossSection() {
   return (
     <div className="flex flex-col items-center gap-4">
       <Space direction="vertical" size={8} align="center">
-        <InputNumber
-          value={coreCountInput}
-          min={0}
-          precision={0}
-          onChange={(value) => {
-            if (typeof value !== 'number') return
-            setCoreCountInput(Math.max(0, Math.floor(value)))
-          }}
-          style={{ minWidth: 240 }}
-        />
+        <Space size={8} align="center" wrap>
+          <InputNumber
+            value={coreCountInput}
+            min={0}
+            precision={0}
+            onChange={(value) => {
+              if (typeof value !== 'number') return
+              setCoreCountInput(Math.max(0, Math.floor(value)))
+            }}
+            style={{ minWidth: 180 }}
+          />
+          <Select<TemplateMode>
+            value={templateMode}
+            onChange={(value) => setTemplateMode(value)}
+            options={[
+              { value: 'auto', label: '自动匹配' },
+              { value: '144', label: '144 模板' },
+              { value: '288', label: '288 模板' },
+            ]}
+            style={{ minWidth: 140 }}
+          />
+        </Space>
         <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
           <AntText strong>输入芯数：</AntText>
           {coreCountInput}
           {' · '}
+          <AntText strong>渲染类型：</AntText>
+          {templateMode === 'auto' ? '自动匹配' : `${templateMode} 模板`}
+          {' · '}
           <AntText strong>模板匹配：</AntText>
-          {selectedTemplateSpec ? `${layout?.label} 模板` : '不处理（芯数 ≥ 288）'}
+          {selectedTemplateSpec ? `${selectedTemplateSpec} 模板` : '当前类型与芯数不匹配'}
           {layout ? (
             <>
               {' · '}
@@ -768,7 +793,13 @@ function FiberCrossSection() {
         </>
       ) : (
         <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-          <AntText type="warning">当前芯数大于 288，不进行模板渲染。</AntText>
+          <AntText type="warning">
+            {templateMode === '144'
+              ? '当前芯数大于 144，无法按 144 模板渲染。'
+              : templateMode === '288'
+                ? '当前芯数大于 288，无法按 288 模板渲染。'
+                : '当前芯数大于 288，不进行模板渲染。'}
+          </AntText>
         </Paragraph>
       )}
     </div>
