@@ -12,13 +12,14 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "antd": "^6.3.4",
-    "fabric": "^7.2.0",
+    "fabric": "^5.5.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/fabric": "^5.3.11",
     "@types/node": "^24.12.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
