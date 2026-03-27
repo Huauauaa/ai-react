@@ -76,6 +76,10 @@ const CANVAS_CENTER_X = CANVAS_WIDTH / 2
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2
 const HOVER_STROKE = '#0f172a'
 const SELECTED_STROKE = '#2563eb'
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 3
+const ZOOM_STEP = 0.1
+const DOWNLOAD_FILE_NAME = 'fiber-cross-section.png'
 
 const STANDARD_COLOR_SEQUENCE: FiberColorBand[] = [
   { name: '蓝', fill: '#2563eb', stroke: '#1d4ed8', labelColor: '#ffffff' },
@@ -496,6 +500,7 @@ function makeEmptyTube(
 
 function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const coreCountInput = caseData ? (caseData.type === '288' ? 288 : 144) : 144
   const effectiveCoreColorMap = useMemo(() => {
     if (!caseData) return coreColorMap
@@ -551,6 +556,7 @@ function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
       backgroundColor: '#f8fafc',
       selection: false,
     })
+    fabricCanvasRef.current = fabricCanvas
 
     const outerSheath = new Circle({
       left: CANVAS_CENTER_X,
@@ -630,6 +636,9 @@ function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
 
     let hoveredFiber: FiberObject | null = null
     let selectedFiber: FiberObject | null = null
+    let isPanning = false
+    let lastPointerX = 0
+    let lastPointerY = 0
 
     const syncFiberVisualState = (fiber: FiberObject | null) => {
       if (!fiber?.fiberMeta) return
@@ -681,6 +690,11 @@ function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
     fabricCanvas.on('mouse:down', (event) => {
       const target = event.target as FiberObject | undefined
       if (!target?.fiberMeta) {
+        const mouseEvent = event.e as MouseEvent
+        isPanning = true
+        lastPointerX = mouseEvent.clientX
+        lastPointerY = mouseEvent.clientY
+        fabricCanvas.defaultCursor = 'grabbing'
         updateSelectedFiber(null)
         return
       }
@@ -722,9 +736,28 @@ function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
         )
       }
     })
+    fabricCanvas.on('mouse:move', (event) => {
+      if (!isPanning) return
 
+      const mouseEvent = event.e as MouseEvent
+      const deltaX = mouseEvent.clientX - lastPointerX
+      const deltaY = mouseEvent.clientY - lastPointerY
+      lastPointerX = mouseEvent.clientX
+      lastPointerY = mouseEvent.clientY
+
+      const viewportTransform = fabricCanvas.viewportTransform
+      if (!viewportTransform) return
+      viewportTransform[4] += deltaX
+      viewportTransform[5] += deltaY
+      fabricCanvas.requestRenderAll()
+    })
+    fabricCanvas.on('mouse:up', () => {
+      isPanning = false
+      fabricCanvas.defaultCursor = 'default'
+    })
     fabricCanvas.renderAll()
     return () => {
+      fabricCanvasRef.current = null
       fabricCanvas.dispose()
     }
   }, [
@@ -736,8 +769,66 @@ function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
 
   if (!layout) return null
 
+  const zoomCanvas = (delta: number) => {
+    const currentCanvas = fabricCanvasRef.current
+    if (!currentCanvas) return
+
+    const currentZoom = currentCanvas.getZoom()
+    const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, currentZoom + delta))
+    const centerPoint = new fabric.Point(CANVAS_CENTER_X, CANVAS_CENTER_Y)
+    currentCanvas.zoomToPoint(centerPoint, nextZoom)
+    currentCanvas.requestRenderAll()
+  }
+
+  const downloadCanvasImage = () => {
+    const currentCanvas = fabricCanvasRef.current
+    if (!currentCanvas) return
+
+    const dataUrl = currentCanvas.toDataURL({
+      format: 'png',
+      quality: 1,
+      multiplier: 1,
+    })
+
+    const link = document.createElement('a')
+    link.href = dataUrl
+    link.download = DOWNLOAD_FILE_NAME
+    link.click()
+  }
+
   return (
-    <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="relative overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="absolute right-4 top-4 z-10 flex gap-2">
+        <button
+          type="button"
+          onClick={() => zoomCanvas(ZOOM_STEP)}
+          className="h-8 w-8 rounded-full border border-slate-300 bg-white text-lg leading-none text-slate-700 shadow-sm hover:bg-slate-50"
+          aria-label="放大"
+          title="放大"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomCanvas(-ZOOM_STEP)}
+          className="h-8 w-8 rounded-full border border-slate-300 bg-white text-lg leading-none text-slate-700 shadow-sm hover:bg-slate-50"
+          aria-label="缩小"
+          title="缩小"
+        >
+          -
+        </button>
+        <button
+          type="button"
+          onClick={downloadCanvasImage}
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+          aria-label="下载图片"
+          title="下载图片"
+        >
+          <span aria-hidden="true" className="text-base leading-none">
+            &#8681;
+          </span>
+        </button>
+      </div>
       <canvas ref={canvasElementRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
     </div>
   )
