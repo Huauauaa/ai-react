@@ -1,13 +1,18 @@
-import { Card, ConfigProvider, Space, Typography } from 'antd'
+import { Card, ConfigProvider, Select, Space } from 'antd'
+import { useMemo, useState } from 'react'
 import FiberCrossSection from './components/FiberCrossSection'
-
-const { Title, Paragraph, Text } = Typography
+import case1Data from './components/case1.json'
+import case2Data from './components/case2.json'
 
 function App() {
-  const customCoreColorMap = {
-    '1-1': '蓝色',
-    '1-2': '红色',
-  }
+  const cases = useMemo(
+    () => ({
+      case1: case1Data,
+      case2: case2Data,
+    }),
+    [],
+  )
+  const [activeCaseKey, setActiveCaseKey] = useState<keyof typeof cases>('case1')
 
   return (
     <ConfigProvider
@@ -22,14 +27,16 @@ function App() {
         <section className="mx-auto max-w-3xl">
           <Card className="shadow-sm" variant="borderless">
             <Space direction="vertical" size="middle" className="w-full">
-              <Text className="text-sky-600">Vite + React + TypeScript</Text>
-              <Title level={2} style={{ margin: 0 }}>
-                光纤横切面（Fabric.js）
-              </Title>
-              <Paragraph style={{ marginBottom: 0 }}>
-                支持输入任意芯数并自动匹配模板：小于等于 144 使用 144 芯模板，大于 144 且小于等于 288 使用 288 芯模板，大于 288 不处理。点击管束或纤芯后，会弹出弹框，显示对应的编号信息。
-              </Paragraph>
-              <FiberCrossSection coreColorMap={customCoreColorMap} />
+              <Select
+                value={activeCaseKey}
+                onChange={(value) => setActiveCaseKey(value)}
+                options={[
+                  { value: 'case1', label: 'case1.json' },
+                  { value: 'case2', label: 'case2.json' },
+                ]}
+                style={{ width: 180 }}
+              />
+              <FiberCrossSection caseData={cases[activeCaseKey]} />
             </Space>
           </Card>
         </section>

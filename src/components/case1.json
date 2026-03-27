@@ -1,0 +1,15 @@
+{
+    "type": "144",
+    "cores":[{
+        "position": "1-1",
+        "color": "蓝"
+    },
+    {
+        "position": "1-2",
+        "color": "红"
+    },
+    {
+        "position": "3-2",
+        "color": "红"
+    }]
+}

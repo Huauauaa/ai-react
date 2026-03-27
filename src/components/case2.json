@@ -1,0 +1,13 @@
+{
+    "type": "288",
+    "cores": [
+        {
+            "position": "13-1",
+            "color": "红"
+        },
+        {
+            "position": "13-2",
+            "color": "绿"
+        }
+    ]
+}

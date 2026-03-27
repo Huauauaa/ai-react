@@ -1,17 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { InputNumber, Modal, Select, Space, Typography } from 'antd'
+import { useEffect, useMemo, useRef } from 'react'
 import { fabric } from 'fabric'
 
 const { Canvas, Circle } = fabric
 
-const { Paragraph, Text: AntText } = Typography
 
 type FiberTargetType = 'tube' | 'core'
 type TemplateSpec = '144' | '288'
-type TemplateMode = 'auto' | TemplateSpec
 export type FiberCoreColorMap = Record<string, string>
+type FiberCaseCore = {
+  position: string
+  color: string
+}
+type FiberCaseData = {
+  type: string
+  cores?: FiberCaseCore[]
+}
 type FiberCrossSectionProps = {
   coreColorMap?: FiberCoreColorMap
+  caseData?: FiberCaseData
 }
 
 type FiberMeta = {
@@ -48,16 +54,7 @@ type FiberColorBand = {
   stroke: string
   labelColor?: string
 }
-type FiberColorLegend = {
-  title: string
-  description: string
-  sequence: FiberColorBand[]
-  indexStart?: number
-}
 type FiberLayout = {
-  label: string
-  totalCores: number
-  arrangementLabel: string
   isolationLayerMaxRadius?: number
   tubeRadius: number
   coreRadius: number
@@ -68,7 +65,6 @@ type FiberLayout = {
   rings: RingLayout[]
   tubeColorSequence?: FiberColorBand[]
   coreColorSequence?: FiberColorBand[]
-  colorLegends?: FiberColorLegend[]
 }
 
 const CANVAS_WIDTH = 760
@@ -100,7 +96,6 @@ const OUTER_TUBE_COLOR_SEQUENCE = [
   ...STANDARD_COLOR_SEQUENCE,
   ...STANDARD_COLOR_SEQUENCE.slice(0, 3),
 ]
-const STANDARD_COLOR_SEQUENCE_TEXT = STANDARD_COLOR_SEQUENCE.map((color) => color.name).join('、')
 const SINGLE_RING_SLOT_COUNT = 12
 const INNER_RING_SLOT_COUNT = 9
 const OUTER_RING_SLOT_COUNT = 15
@@ -131,41 +126,17 @@ const EMPTY_SLOT_COLOR = {
 }
 const CORE_COLOR_ALIAS_MAP: Record<string, FiberColorBand> = {
   蓝: STANDARD_COLOR_SEQUENCE[0],
-  蓝色: STANDARD_COLOR_SEQUENCE[0],
-  orange: STANDARD_COLOR_SEQUENCE[1],
   橙: STANDARD_COLOR_SEQUENCE[1],
-  橙色: STANDARD_COLOR_SEQUENCE[1],
-  green: STANDARD_COLOR_SEQUENCE[2],
   绿: STANDARD_COLOR_SEQUENCE[2],
-  绿色: STANDARD_COLOR_SEQUENCE[2],
-  brown: STANDARD_COLOR_SEQUENCE[3],
   棕: STANDARD_COLOR_SEQUENCE[3],
-  棕色: STANDARD_COLOR_SEQUENCE[3],
-  gray: STANDARD_COLOR_SEQUENCE[4],
-  grey: STANDARD_COLOR_SEQUENCE[4],
   灰: STANDARD_COLOR_SEQUENCE[4],
-  灰色: STANDARD_COLOR_SEQUENCE[4],
-  white: STANDARD_COLOR_SEQUENCE[5],
   白: STANDARD_COLOR_SEQUENCE[5],
-  白色: STANDARD_COLOR_SEQUENCE[5],
-  red: STANDARD_COLOR_SEQUENCE[6],
   红: STANDARD_COLOR_SEQUENCE[6],
-  红色: STANDARD_COLOR_SEQUENCE[6],
-  black: STANDARD_COLOR_SEQUENCE[7],
   黑: STANDARD_COLOR_SEQUENCE[7],
-  黑色: STANDARD_COLOR_SEQUENCE[7],
-  yellow: STANDARD_COLOR_SEQUENCE[8],
   黄: STANDARD_COLOR_SEQUENCE[8],
-  黄色: STANDARD_COLOR_SEQUENCE[8],
-  purple: STANDARD_COLOR_SEQUENCE[9],
   紫: STANDARD_COLOR_SEQUENCE[9],
-  紫色: STANDARD_COLOR_SEQUENCE[9],
-  pink: STANDARD_COLOR_SEQUENCE[10],
   粉红: STANDARD_COLOR_SEQUENCE[10],
-  粉色: STANDARD_COLOR_SEQUENCE[10],
-  teal: STANDARD_COLOR_SEQUENCE[11],
   青绿: STANDARD_COLOR_SEQUENCE[11],
-  青绿色: STANDARD_COLOR_SEQUENCE[11],
 }
 
 function getRequiredTubeCount(totalCores: number, slotCount: number): number {
@@ -184,31 +155,11 @@ function getSingleRingEmptySlotIndices(totalCores: number): number[] {
   return [...SINGLE_RING_EMPTY_SLOT_PRIORITY.slice(0, emptyCount)]
 }
 
-function getSingleRingTubeLegendDescription(emptySlotIndices: number[]): string {
-  const baseDescription = `从 10 点钟方向蓝色开始，按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`
-  if (!emptySlotIndices.length) {
-    return baseDescription
-  }
-
-  const emptySlotNames = emptySlotIndices
-    .map((slotIndex) => getColorBand(STANDARD_COLOR_SEQUENCE, slotIndex, DEFAULT_TUBE_COLOR).name)
-    .join('、')
-
-  return `${baseDescription.slice(0, -1)}，其中 ${emptySlotNames} 管位为空圆占位。`
-}
-
 function createSingleRingLayout(totalCores: number): FiberLayout {
-  const tubeCount = getRequiredTubeCount(totalCores, SINGLE_RING_SLOT_COUNT)
   const emptySlotIndices = getSingleRingEmptySlotIndices(totalCores)
   const emptyCount = emptySlotIndices.length
 
   return {
-    label: `${totalCores} 芯`,
-    totalCores,
-    arrangementLabel:
-      emptyCount > 0
-        ? `${SINGLE_RING_SLOT_COUNT} 个管位围成单圈：${tubeCount} 个管束 + ${emptyCount} 个空圆`
-        : `${SINGLE_RING_SLOT_COUNT} 个管束围成单圈`,
     isolationLayerMaxRadius: 122,
     tubeRadius: 56,
     coreRadius: 10,
@@ -226,18 +177,6 @@ function createSingleRingLayout(totalCores: number): FiberLayout {
     ],
     tubeColorSequence: STANDARD_COLOR_SEQUENCE,
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
-    colorLegends: [
-      {
-        title: '束管色谱',
-        description: getSingleRingTubeLegendDescription(emptySlotIndices),
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-      {
-        title: '纤芯色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-    ],
   }
 }
 
@@ -257,44 +196,11 @@ function getDoubleRingSlotOccupancy(totalCores: number): {
   }
 }
 
-function getDoubleRingInnerTubeLegendDescription(innerEmptySlotIndices: number[]): string {
-  const baseDescription = `从 1 点钟方向蓝色开始，依次为 ${INNER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`
-  if (!innerEmptySlotIndices.length) {
-    return baseDescription
-  }
-
-  const emptySlotNames = innerEmptySlotIndices
-    .map((slotIndex) => getColorBand(INNER_TUBE_COLOR_SEQUENCE, slotIndex, DEFAULT_TUBE_COLOR).name)
-    .join('、')
-
-  return `${baseDescription.slice(0, -1)}，其中 ${emptySlotNames} 管位为空圆占位。`
-}
-
-function getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices: number[]): string {
-  const baseDescription = `从 4 点钟方向第一个蓝色开始，依次为 ${OUTER_TUBE_COLOR_SEQUENCE.map((color) => color.name).join('、')}。`
-  if (!outerEmptySlotIndices.length) {
-    return baseDescription
-  }
-
-  const emptySlotNames = outerEmptySlotIndices
-    .map((slotIndex) => getColorBand(OUTER_TUBE_COLOR_SEQUENCE, slotIndex, DEFAULT_TUBE_COLOR).name)
-    .join('、')
-
-  return `${baseDescription.slice(0, -1)}，其中 ${emptySlotNames} 管位为空圆占位。`
-}
-
 function createDoubleRingLayout(totalCores: number): FiberLayout {
-  const { tubeCount, innerEmptySlotIndices, outerEmptySlotIndices } =
-    getDoubleRingSlotOccupancy(totalCores)
+  const { innerEmptySlotIndices, outerEmptySlotIndices } = getDoubleRingSlotOccupancy(totalCores)
   const emptyCount = innerEmptySlotIndices.length + outerEmptySlotIndices.length
 
   return {
-    label: `${totalCores} 芯`,
-    totalCores,
-    arrangementLabel:
-      emptyCount > 0
-        ? `${DOUBLE_RING_SLOT_COUNT} 个管位双圈排布：${tubeCount} 个管束 + ${emptyCount} 个空圆`
-        : `双圈排布：内圈 ${INNER_RING_SLOT_COUNT} 个，外圈 ${OUTER_RING_SLOT_COUNT} 个`,
     isolationLayerMaxRadius: DEFAULT_ISOLATION_LAYER_MAX_RADIUS,
     tubeRadius: 38,
     coreRadius: 6,
@@ -318,37 +224,10 @@ function createDoubleRingLayout(totalCores: number): FiberLayout {
     ],
     tubeColorSequence: [...INNER_TUBE_COLOR_SEQUENCE, ...OUTER_TUBE_COLOR_SEQUENCE],
     coreColorSequence: STANDARD_COLOR_SEQUENCE,
-    colorLegends: [
-      {
-        title: '束管色谱（内圈第 1-9 管）',
-        description: getDoubleRingInnerTubeLegendDescription(innerEmptySlotIndices),
-        sequence: INNER_TUBE_COLOR_SEQUENCE,
-        indexStart: 1,
-      },
-      {
-        title: '束管色谱（外圈第 10-24 管）',
-        description: getDoubleRingOuterTubeLegendDescription(outerEmptySlotIndices),
-        sequence: OUTER_TUBE_COLOR_SEQUENCE,
-        indexStart: 10,
-      },
-      {
-        title: '纤芯色谱',
-        description: `按 ${STANDARD_COLOR_SEQUENCE_TEXT} 排列。`,
-        sequence: STANDARD_COLOR_SEQUENCE,
-      },
-    ],
   }
 }
 
-function resolveTemplateSpec(totalCores: number, templateMode: TemplateMode): TemplateSpec | null {
-  if (templateMode === '144') {
-    return totalCores <= 144 ? '144' : null
-  }
-
-  if (templateMode === '288') {
-    return totalCores <= 288 ? '288' : null
-  }
-
+function resolveTemplateSpec(totalCores: number): TemplateSpec | null {
   if (totalCores <= 144) return '144'
   if (totalCores > 144 && totalCores <= 288) return '288'
   return null
@@ -360,19 +239,8 @@ function resolveLayout(totalCores: number, selectedTemplateSpec: TemplateSpec | 
   return null
 }
 
-function getTubeCount(layout: FiberLayout): number {
-  return layout.rings.reduce(
-    (sum, ring) => sum + ring.slotCount - (ring.emptySlotIndices?.length ?? 0),
-    0,
-  )
-}
-
 function isEmptySlot(ring: RingLayout, slotIndex: number): boolean {
   return ring.emptySlotIndices?.includes(slotIndex) ?? false
-}
-
-function getTubeSlotCount(layout: FiberLayout): number {
-  return layout.rings.reduce((sum, ring) => sum + ring.slotCount, 0)
 }
 
 function getColorBand(
@@ -626,32 +494,47 @@ function makeEmptyTube(
   fabricCanvas.add(emptyCircle)
 }
 
-function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
+function FiberCrossSection({ coreColorMap, caseData }: FiberCrossSectionProps) {
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
-  const [coreCountInput, setCoreCountInput] = useState<number>(144)
-  const [templateMode, setTemplateMode] = useState<TemplateMode>('auto')
-  const [renderTubeIndices, setRenderTubeIndices] = useState<number[]>([])
-  const [open, setOpen] = useState(false)
-  const [message, setMessage] = useState('')
-  const useCustomCoreColorMap = coreColorMap !== undefined
-  const resolvedCoreColorMap = useMemo(() => resolveCoreColorMap(coreColorMap), [coreColorMap])
-  const selectedTemplateSpec = resolveTemplateSpec(coreCountInput, templateMode)
-  const layout = resolveLayout(coreCountInput, selectedTemplateSpec)
-  const tubeCount = layout ? getTubeCount(layout) : 0
-  const tubeSlotCount = layout ? getTubeSlotCount(layout) : 0
-  const coresPerTube = layout ? layout.coreColumns * layout.coreRows : 0
-  const renderTubeOptions: Array<{ value: number; label: string }> = Array.from(
-    { length: tubeCount },
-    (_, index) => ({
-      value: index + 1,
-      label: `第 ${index + 1} 管束`,
-    }),
+  const coreCountInput = caseData ? (caseData.type === '288' ? 288 : 144) : 144
+  const effectiveCoreColorMap = useMemo(() => {
+    if (!caseData) return coreColorMap
+    const caseCoreColorMap: FiberCoreColorMap = {}
+    for (const core of caseData.cores ?? []) {
+      caseCoreColorMap[core.position] = core.color
+    }
+    return caseCoreColorMap
+  }, [caseData, coreColorMap])
+  const useCustomCoreColorMap = effectiveCoreColorMap !== undefined
+  const resolvedCoreColorMap = useMemo(
+    () => resolveCoreColorMap(effectiveCoreColorMap),
+    [effectiveCoreColorMap],
   )
-  const isRenderingAllTubes = renderTubeIndices.length === 0
-
-  useEffect(() => {
-    setRenderTubeIndices((previous) => previous.filter((tubeIndex) => tubeIndex <= tubeCount))
-  }, [tubeCount])
+  const caseTubeIndices = useMemo(() => {
+    if (!caseData) return null
+    const indices = new Set<number>()
+    for (const [positionKey] of Object.entries(effectiveCoreColorMap ?? {})) {
+      const position = parseFiberCorePositionKey(positionKey)
+      if (!position) continue
+      indices.add(position.tubeIndex)
+    }
+    return indices
+  }, [caseData, effectiveCoreColorMap])
+  const selectedTemplateSpec = caseData
+    ? caseData.type === '288'
+      ? '288'
+      : caseData.type === '144'
+        ? '144'
+        : null
+    : resolveTemplateSpec(coreCountInput)
+  const layout = caseData
+    ? selectedTemplateSpec === '144'
+      ? createSingleRingLayout(144)
+      : selectedTemplateSpec === '288'
+        ? createDoubleRingLayout(288)
+        : null
+    : resolveLayout(coreCountInput, selectedTemplateSpec)
+  const coresPerTube = layout ? layout.coreColumns * layout.coreRows : 0
 
   useEffect(() => {
     const canvasElement = canvasElementRef.current
@@ -720,14 +603,10 @@ function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
         const centerX = CANVAS_CENTER_X + ring.radius * Math.cos(angle)
         const centerY = CANVAS_CENTER_Y + ring.radius * Math.sin(angle)
         if (isEmptySlot(ring, i + 1)) {
-          if (isRenderingAllTubes) {
-            makeEmptyTube(fabricCanvas, layout, centerX, centerY)
-          }
+          makeEmptyTube(fabricCanvas, layout, centerX, centerY)
         } else {
-          const shouldRenderCurrentTube =
-            isRenderingAllTubes || renderTubeIndices.includes(actualTubeIndex)
-
-          if (shouldRenderCurrentTube) {
+          const hasCaseTubeData = caseTubeIndices?.has(tubeSlotIndex) ?? true
+          if (hasCaseTubeData) {
             makeTube(
               fabricCanvas,
               layout,
@@ -739,6 +618,8 @@ function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
               useCustomCoreColorMap,
               resolvedCoreColorMap,
             )
+          } else {
+            makeEmptyTube(fabricCanvas, layout, centerX, centerY)
           }
           actualTubeIndex += 1
           globalCoreStartIndex += coresPerTube
@@ -813,7 +694,7 @@ function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
           tubeColorIndex,
           DEFAULT_TUBE_COLOR,
         )
-        setMessage(
+        console.log(
           target.fiberMeta.tubeSlotIndex && target.fiberMeta.tubeSlotIndex !== target.fiberMeta.tubeIndex
             ? `管束序号：${target.fiberMeta.tubeIndex}，管位序号：${target.fiberMeta.tubeSlotIndex}，束管色谱：${tubeColor.name}`
             : `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}`,
@@ -834,13 +715,12 @@ function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
             ? resolvedCoreColorMap.get(`${target.fiberMeta.tubeIndex}-${target.fiberMeta.coreIndex}`)
             : null
         const finalCoreColor = customCoreColor ?? coreColor
-        setMessage(
+        console.log(
           target.fiberMeta.tubeSlotIndex && target.fiberMeta.tubeSlotIndex !== target.fiberMeta.tubeIndex
             ? `管束序号：${target.fiberMeta.tubeIndex}，管位序号：${target.fiberMeta.tubeSlotIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${finalCoreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`
             : `管束序号：${target.fiberMeta.tubeIndex}，束管色谱：${tubeColor.name}，管束内纤芯序号：${target.fiberMeta.coreIndex}，纤芯色谱：${finalCoreColor.name}，全局纤芯序号：${target.fiberMeta.globalCoreIndex}`,
         )
       }
-      setOpen(true)
     })
 
     fabricCanvas.renderAll()
@@ -849,142 +729,16 @@ function FiberCrossSection({ coreColorMap }: FiberCrossSectionProps) {
     }
   }, [
     coresPerTube,
-    isRenderingAllTubes,
     layout,
-    renderTubeIndices,
     resolvedCoreColorMap,
     useCustomCoreColorMap,
   ])
 
+  if (!layout) return null
+
   return (
-    <div className="flex flex-col items-center gap-4">
-      <Space direction="vertical" size={8} align="center">
-        <Space size={8} align="center" wrap>
-          <InputNumber
-            value={coreCountInput}
-            min={0}
-            precision={0}
-            onChange={(value) => {
-              if (typeof value !== 'number') return
-              setCoreCountInput(Math.max(0, Math.floor(value)))
-            }}
-            style={{ minWidth: 180 }}
-          />
-          <Select<TemplateMode>
-            value={templateMode}
-            onChange={(value) => setTemplateMode(value)}
-            options={[
-              { value: 'auto', label: '自动匹配' },
-              { value: '144', label: '144 模板' },
-              { value: '288', label: '288 模板' },
-            ]}
-            style={{ minWidth: 140 }}
-          />
-          <Select<number[]>
-            mode="multiple"
-            value={renderTubeIndices}
-            onChange={(values) => setRenderTubeIndices(values)}
-            options={renderTubeOptions}
-            style={{ minWidth: 260 }}
-            maxTagCount="responsive"
-            placeholder="未选择时渲染全部管束"
-            disabled={!layout || tubeCount === 0}
-          />
-        </Space>
-        <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-          <AntText strong>输入芯数：</AntText>
-          {coreCountInput}
-          {' · '}
-          <AntText strong>渲染类型：</AntText>
-          {templateMode === 'auto' ? '自动匹配' : `${templateMode} 模板`}
-          {' · '}
-          <AntText strong>模板匹配：</AntText>
-          {selectedTemplateSpec ? `${selectedTemplateSpec} 模板` : '当前类型与芯数不匹配'}
-          {layout ? (
-            <>
-              {' · '}
-              <AntText strong>当前规格：</AntText>
-              {layout.label}
-              {' · '}
-              <AntText strong>排布：</AntText>
-              {layout.arrangementLabel}
-              {' · '}
-              <AntText strong>管束数：</AntText>
-              {tubeCount}
-              {' · '}
-              <AntText strong>管位数：</AntText>
-              {tubeSlotCount}
-              {' · '}
-              <AntText strong>每管纤芯数：</AntText>
-              {coresPerTube}
-              {' · '}
-              <AntText strong>当前渲染：</AntText>
-              {isRenderingAllTubes
-                ? '全部管束'
-                : renderTubeIndices
-                    .map((tubeIndex) => `第 ${tubeIndex} 管束`)
-                    .join('、')}
-            </>
-          ) : null}
-        </Paragraph>
-      </Space>
-      {layout ? (
-        <>
-          <Paragraph style={{ marginBottom: 0 }}>
-            <AntText strong>交互说明：</AntText>悬停任意管束或纤芯可查看激活高亮，点击后会保留选中样式并弹出对应序号信息。
-          </Paragraph>
-          {layout.colorLegends?.length ? (
-            <Space direction="vertical" size={8} align="center">
-              {layout.colorLegends.map((legend) => (
-                <Space key={legend.title} direction="vertical" size={8} align="center">
-                  <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-                    <AntText strong>{legend.title}：</AntText>
-                    {legend.description}
-                  </Paragraph>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {legend.sequence.map((color, index) => (
-                      <span
-                        key={`${legend.title}-${legend.indexStart ?? 1}-${index}-${color.name}`}
-                        className="rounded-full border px-3 py-1 text-sm shadow-sm"
-                        style={{
-                          backgroundColor: color.fill,
-                          borderColor: color.stroke,
-                          color: color.labelColor ?? DEFAULT_TUBE_COLOR.labelColor,
-                        }}
-                      >
-                        {(legend.indexStart ?? 1) + index}. {color.name}
-                      </span>
-                    ))}
-                  </div>
-                </Space>
-              ))}
-            </Space>
-          ) : null}
-          <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <canvas ref={canvasElementRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
-          </div>
-          <Modal
-            open={open}
-            title="横切面编号信息"
-            onCancel={() => setOpen(false)}
-            onOk={() => setOpen(false)}
-            okText="确定"
-            cancelText="关闭"
-          >
-            <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-line' }}>{message}</Paragraph>
-          </Modal>
-        </>
-      ) : (
-        <Paragraph style={{ marginBottom: 0, textAlign: 'center' }}>
-          <AntText type="warning">
-            {templateMode === '144'
-              ? '当前芯数大于 144，无法按 144 模板渲染。'
-              : templateMode === '288'
-                ? '当前芯数大于 288，无法按 288 模板渲染。'
-                : '当前芯数大于 288，不进行模板渲染。'}
-          </AntText>
-        </Paragraph>
-      )}
+    <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <canvas ref={canvasElementRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} />
     </div>
   )
 }
