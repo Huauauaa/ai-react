@@ -8,11 +8,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bones:build": "boneyard-js build",
+    "bones:build:force": "boneyard-js build --force"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "antd": "^6.3.4",
+    "boneyard-js": "^1.6.7",
     "fabric": "^5.5.2",
     "konva": "^10.2.0",
     "react": "^19.2.4",

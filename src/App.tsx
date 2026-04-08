@@ -28,6 +28,9 @@ export function App() {
             <NavLink to="/modal" className={navLinkClass}>
               可拖拽弹窗
             </NavLink>
+            <NavLink to="/boneyard" className={navLinkClass}>
+              Boneyard 骨架屏
+            </NavLink>
           </nav>
           <Outlet />
         </div>
