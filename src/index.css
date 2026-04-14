@@ -16,3 +16,40 @@ body {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background-color: #f5f7fb;
 }
+
+/* File explorer: syntax token colors (GitHub-like light) */
+.file-explorer-code {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #1f2328;
+  tab-size: 2;
+}
+
+.file-explorer-code .syn-kw {
+  color: #cf222e;
+  font-weight: 600;
+}
+
+.file-explorer-code .syn-str {
+  color: #0a3069;
+}
+
+.file-explorer-code .syn-cmt {
+  color: #59636e;
+  font-style: italic;
+}
+
+.file-explorer-code .syn-num {
+  color: #0550ae;
+}
+
+.file-explorer-code .syn-type {
+  color: #953800;
+}
+
+.file-explorer-code .syn-at {
+  color: #8250df;
+  font-weight: 600;
+}

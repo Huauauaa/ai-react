@@ -1,5 +1,5 @@
 import { ConfigProvider } from 'antd'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
@@ -7,6 +7,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   }`
 
 export function App() {
+  const location = useLocation()
+  const wideLayout = location.pathname.endsWith('/explorer')
+
   return (
     <ConfigProvider
       theme={{
@@ -17,7 +20,7 @@ export function App() {
       }}
     >
       <main className="min-h-screen bg-slate-100 p-6 md:p-10">
-        <div className="mx-auto max-w-3xl">
+        <div className={wideLayout ? 'mx-auto max-w-7xl' : 'mx-auto max-w-3xl'}>
           <nav className="mb-4 flex flex-wrap gap-2 rounded-xl border border-slate-200/80 bg-slate-200/40 p-2">
             <NavLink to="/fiber" className={navLinkClass}>
               光纤截面
@@ -30,6 +33,9 @@ export function App() {
             </NavLink>
             <NavLink to="/boneyard" className={navLinkClass}>
               Boneyard 骨架屏
+            </NavLink>
+            <NavLink to="/explorer" className={navLinkClass}>
+              文件浏览
             </NavLink>
           </nav>
           <Outlet />

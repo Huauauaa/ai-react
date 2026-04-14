@@ -5,6 +5,7 @@ import { boneyardRoute } from './routes/Boneyard.router'
 import { draggableModalRoute } from './routes/DraggableModal.router'
 import { fiberCrossSectionRoute } from './routes/FiberCrossSection.router'
 import { konvaTiledPhotoGridRoute } from './routes/KonvaTiledPhotoGrid.router'
+import { fileExplorerRoute } from './routes/FileExplorer.router'
 
 export const appRoutes: RouteObject[] = [
   {
@@ -16,6 +17,7 @@ export const appRoutes: RouteObject[] = [
       konvaTiledPhotoGridRoute,
       draggableModalRoute,
       boneyardRoute,
+      fileExplorerRoute,
     ],
   },
 ]
