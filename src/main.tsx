@@ -6,7 +6,10 @@ import './index.css'
 import './bones/registry'
 import { appRoutes } from './appRoutes'
 
-const router = createBrowserRouter(appRoutes)
+const baseUrl = import.meta.env.BASE_URL
+const router = createBrowserRouter(appRoutes, {
+  ...(baseUrl !== '/' && { basename: baseUrl.replace(/\/$/, '') }),
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
